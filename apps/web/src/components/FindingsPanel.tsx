@@ -126,6 +126,8 @@ export function FindingsPanel({
   const [filter, setFilter] = useState<FindingCategory | 'all'>(initialFilter);
   const [tab, setTab] = useState<FindingsTab>('checklist');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState(false);
+  const [valueSelections, setValueSelections] = useState<Record<string, { signature: string; index: number }>>({});
   const [checklistFilter, setChecklistFilter] = useState<string>('all');
   const [checklistSearch, setChecklistSearch] = useState('');
 
@@ -149,13 +151,17 @@ export function FindingsPanel({
   });
 
   function copyValue(key: string, value: string) {
-    if (!navigator.clipboard?.writeText) return;
+    setCopyError(false);
+    if (!navigator.clipboard?.writeText) {
+      setCopyError(true);
+      return;
+    }
     void navigator.clipboard.writeText(value).then(() => {
       setCopiedKey(key);
       window.setTimeout(() => {
         setCopiedKey((current) => (current === key ? null : current));
       }, 1800);
-    }).catch(() => undefined);
+    }).catch(() => setCopyError(true));
   }
 
   return (
@@ -354,12 +360,16 @@ export function FindingsPanel({
                 <h3>Extracted project values</h3>
                 <span className="panel-meta">{foundValues.length} detected</span>
               </div>
-              <p className="muted">Values parsed from PDF text layers for CivCheck intake checks. Always verify against the drawing.</p>
+              <p className="muted">Verify detected values against the drawing before copying them.</p>
+              {copyError && <p role="alert" className="error-text">Clipboard access failed. Select the value and copy it manually.</p>}
               <div className="value-grid">
                 {summary.extractedValues.map((entry) => {
-                  const firstOccurrence = entry.occurrences[0];
-                  const canCopy = entry.status === 'found' || entry.status === 'conflicting';
-                  const isCopied = copiedKey === entry.key;
+                  const signature = JSON.stringify(entry.candidates);
+                  const selection = valueSelections[entry.key];
+                  const selected = entry.status === 'found' ? entry.candidates[0]
+                    : selection?.signature === signature ? entry.candidates[selection.index] : undefined;
+                  const copyKey = `${entry.key}:${signature}:${selected?.value ?? ''}`;
+                  const isCopied = copiedKey === copyKey;
                   return (
                     <article className={`value-card value-${entry.status}`} key={entry.key}>
                       <div className="value-card-top">
@@ -368,30 +378,43 @@ export function FindingsPanel({
                           {entry.status === 'found' ? 'Found' : entry.status === 'derived' ? 'Estimated' : entry.status === 'conflicting' ? 'Conflicting' : 'Not found'}
                         </span>
                       </div>
-                      <p className="value-text">{entry.value || 'Not detected in extracted text'}</p>
-                      <div className="value-source">
-                        <span className="muted small" title={firstOccurrence ? `${firstOccurrence.fileName}, p. ${firstOccurrence.page}` : undefined}>
-                          {firstOccurrence
-                            ? `${firstOccurrence.fileName}, p. ${firstOccurrence.page}${entry.occurrences.length > 1 ? ` (+${entry.occurrences.length - 1})` : ''}`
-                            : 'No source match'}
-                        </span>
+                      {entry.candidates.length === 0 && <p className="value-text">{entry.value || 'Not detected in extracted text'}</p>}
+                      {entry.status === 'conflicting' && (
+                        <label className="field-label">
+                          Choose {entry.label.toLowerCase()} to copy
+                          <select value={selected && selection ? String(selection.index) : ''} onChange={(event) => {
+                            const index = event.target.value === '' ? -1 : Number(event.target.value);
+                            setValueSelections((current) => ({ ...current, [entry.key]: { signature, index } }));
+                          }}>
+                            <option value="">Select a value</option>
+                            {entry.candidates.map((candidate, index) => <option key={candidate.value} value={index}>{candidate.value}</option>)}
+                          </select>
+                        </label>
+                      )}
+                      {entry.candidates.map((candidate) => (
+                        <details key={candidate.value} open={entry.status === 'conflicting' || candidate.occurrences.length === 1}>
+                          <summary className="value-text">{candidate.value}</summary>
+                          {candidate.occurrences.map((source) => (
+                            <div className="value-source" key={JSON.stringify([source.fileId, source.revision, source.page])}>
+                              <span className="muted small">{source.snippet}</span>
+                              <button type="button" className="button ghost sm has-icon" onClick={() => onPreview(source.fileId, source.page)}>
+                                <IconEye width={14} height={14} /> {source.fileName}, p. {source.page}
+                              </button>
+                            </div>
+                          ))}
+                        </details>
+                      ))}
+                      {entry.candidates.length > 0 && (
                         <div className="action-row">
-                          {canCopy && (
-                            <button type="button" className={`button ghost sm copy-button ${isCopied ? 'is-copied' : ''}`} onClick={() => copyValue(entry.key, entry.value)}>
-                              <span className="icon-swap" aria-hidden="true">
-                                <IconCopy className="swap-out" width={14} height={14} />
-                                <IconCheck className="swap-in" width={14} height={14} />
-                              </span>
-                              <span>{isCopied ? 'Copied' : 'Copy'}</span>
-                            </button>
-                          )}
-                          {firstOccurrence && (
-                            <button type="button" className="button ghost sm has-icon" onClick={() => onPreview(firstOccurrence.fileId, firstOccurrence.page)}>
-                              <IconEye width={14} height={14} /> View sheet
-                            </button>
-                          )}
+                          <button type="button" className={`button ghost sm copy-button ${isCopied ? 'is-copied' : ''}`} disabled={!selected} onClick={() => selected && copyValue(copyKey, selected.value)}>
+                            <span className="icon-swap" aria-hidden="true">
+                              <IconCopy className="swap-out" width={14} height={14} />
+                              <IconCheck className="swap-in" width={14} height={14} />
+                            </span>
+                            <span>{isCopied ? 'Copied' : 'Copy'}</span>
+                          </button>
                         </div>
-                      </div>
+                      )}
                     </article>
                   );
                 })}
@@ -404,14 +427,14 @@ export function FindingsPanel({
               <h3>Document type preview</h3>
               <p className="muted">Suggested CivCheck document-type mapping from filenames and extracted text. Confirm manually in Document review.</p>
               <div className="assignment-grid">
-                {summary.assignments.filter((slot) => slot.assignedFiles.length > 0 || slot.requiredGroup === 'plan').map((slot) => (
+                {summary.assignments.filter((slot) => slot.assignedFiles.length > 0).map((slot) => (
                   <div className="assignment-row" key={slot.docType}>
                     <strong>{slot.docType}</strong>
-                    <span className={slot.assignedFiles.length ? 'assignment-files' : 'muted small'}>
-                      {slot.assignedFiles.length
-                        ? slot.assignedFiles.map((file) => file.fileName).join(', ')
-                        : 'No matching file detected'}
-                    </span>
+                    <ul className="assignment-files">
+                      {slot.assignedFiles.map((file) => (
+                        <li key={file.fileId}>{file.fileName} <span className="muted small">· {file.confidence === 'medium' ? 'Tentative. ' : ''}{file.reason}</span></li>
+                      ))}
+                    </ul>
                   </div>
                 ))}
               </div>

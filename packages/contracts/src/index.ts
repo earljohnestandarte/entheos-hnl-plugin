@@ -57,7 +57,9 @@ export type ExtractedValueStatus = 'found' | 'missing' | 'conflicting' | 'derive
 export interface ValueOccurrence {
   fileId: string;
   fileName: string;
+  revision: number;
   page: number;
+  raw: string;
   snippet: string;
 }
 
@@ -67,6 +69,7 @@ export interface ExtractedValueEntry {
   value: string;
   status: ExtractedValueStatus;
   occurrences: ValueOccurrence[];
+  candidates: Array<{ value: string; occurrences: ValueOccurrence[] }>;
 }
 
 export interface DocumentAssignmentItem {
@@ -77,6 +80,7 @@ export interface DocumentAssignmentItem {
     fileName: string;
     confidence: 'high' | 'medium';
     reason: string;
+    pages: number[];
   }>;
 }
 
@@ -105,7 +109,7 @@ export interface CheckSummary {
 
 export const DEMO_RULE_PACK = {
   id: 'hnl-preparation-demo',
-  version: '0.2.0',
+  version: '0.3.0',
   authority: 'Local preparation checks based on Honolulu DPP / CivCheck walkthrough requirements; not an official DPP or CivCheck determination.',
   source: 'docs/CIVCHECK_WALKTHROUGH.md, File Formatting Requirements & Intake/Plan Checks',
   minWidthInches: 36,

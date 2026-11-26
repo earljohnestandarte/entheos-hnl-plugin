@@ -9,7 +9,6 @@ import type {
 
 interface CandidateOccurrence extends ValueOccurrence {
   normalized: string;
-  raw: string;
 }
 
 const VALUE_DEFS: Array<{ key: ExtractedValueKey; label: string }> = [
@@ -22,105 +21,44 @@ const VALUE_DEFS: Array<{ key: ExtractedValueKey; label: string }> = [
   { key: 'floodZone', label: 'Flood zone' },
   { key: 'lotArea', label: 'Lot area' },
   { key: 'floorArea', label: 'Floor area' },
-  { key: 'buildingArea', label: 'Max / building area' },
+  { key: 'buildingArea', label: 'Building area' },
   { key: 'far', label: 'Floor area ratio (FAR)' },
   { key: 'parkingSpaces', label: 'Parking spaces' },
   { key: 'civCheckId', label: 'CivCheck ID' },
   { key: 'architectLicense', label: 'Licensed professional' },
 ];
 
-const ASSIGNMENT_SLOTS: Array<{
-  docType: string;
-  requiredGroup: 'plan' | 'supporting';
-  match: (record: DocumentRecord, text: string) => { confidence: 'high' | 'medium'; reason: string } | null;
-}> = [
-  {
-    docType: 'Title sheet',
-    requiredGroup: 'plan',
-    match: (r) => r.kind === 'plan' && /^00[01]\b/i.test(r.exportName)
-      ? { confidence: 'high', reason: 'Sheet number 000/001' }
-      : null,
-  },
-  {
-    docType: 'Project data table',
-    requiredGroup: 'plan',
-    match: (r, text) => r.kind === 'plan' && (
-      /^(?:00[01]|A001|A004)\b/i.test(r.exportName) ||
-      /\b(?:general\s+informations?|revision\s+schedule|zoning\s+district|flood\s+zone)\b/i.test(text)
-    )
-      ? { confidence: 'high', reason: 'Title / General Information / Revision sheet' }
-      : null,
-  },
-  {
-    docType: 'Plot / Site plan',
-    requiredGroup: 'plan',
-    match: (r) => r.kind === 'plan' && /^(?:A005|C\d{3})\b|\b(?:site|plot)\s*plan\b/i.test(r.exportName)
-      ? { confidence: 'high', reason: 'Site / plot plan filename' }
-      : null,
-  },
-  {
-    docType: 'Demolition plan',
-    requiredGroup: 'plan',
-    match: (r) => r.kind === 'plan' && /\bdemolition\b|^A101\b/i.test(r.exportName)
-      ? { confidence: 'high', reason: 'Demolition plan sheet' }
-      : null,
-  },
-  {
-    docType: 'Floor plans',
-    requiredGroup: 'plan',
-    match: (r) => r.kind === 'plan' && /\bfloor\b|^A102\b/i.test(r.exportName)
-      ? { confidence: 'high', reason: 'Floor / ceiling plan sheet' }
-      : null,
-  },
-  {
-    docType: 'Roof plan / Schedules',
-    requiredGroup: 'plan',
-    match: (r) => r.kind === 'plan' && /\b(?:roof|schedule)\b|^A103\b/i.test(r.exportName)
-      ? { confidence: 'high', reason: 'Roof plan and schedules sheet' }
-      : null,
-  },
-  {
-    docType: 'Exterior building elevations',
-    requiredGroup: 'plan',
-    match: (r) => r.kind === 'plan' && /\bexterior\s+elevations?\b|^A201\b/i.test(r.exportName)
-      ? { confidence: 'high', reason: 'Exterior elevations sheet' }
-      : null,
-  },
-  {
-    docType: 'Building sections / details',
-    requiredGroup: 'plan',
-    match: (r) => r.kind === 'plan' && /\bsections?\b|^A301\b/i.test(r.exportName)
-      ? { confidence: 'high', reason: 'Building sections & details sheet' }
-      : null,
-  },
-  {
-    docType: 'Interior elevations',
-    requiredGroup: 'plan',
-    match: (r) => r.kind === 'plan' && /\binterior\s+elevations?\b|^A401\b/i.test(r.exportName)
-      ? { confidence: 'high', reason: 'Interior elevations sheet' }
-      : null,
-  },
-  {
-    docType: 'Structural plans',
-    requiredGroup: 'plan',
-    match: (r) => r.kind === 'plan' && /^S\d{3}\b|\b(?:foundation|framing|structural)\b/i.test(r.exportName)
-      ? { confidence: 'high', reason: 'Structural sheet prefix/title' }
-      : null,
-  },
-  {
-    docType: 'Supporting documents & checklists',
-    requiredGroup: 'supporting',
-    match: (r) => r.kind === 'supporting'
-      ? { confidence: 'high', reason: 'Classified as supporting document' }
-      : null,
-  },
-];
+const PLAN_ASSIGNMENTS = [
+  ['Title sheet', /\btitle sheet\b/i],
+  ['Project data table', /\b(?:project data(?: table)?|general informations?)\b/i],
+  ['Plot / Site plan', /\b(?:site|plot) plans?\b/i],
+  ['Demolition plan', /\bdemolition(?: plans?)?\b/i],
+  ['Floor plans', /\bfloor(?: ceiling)? plans?\b/i],
+  ['Roof plan / Schedules', /\b(?:roof plans?|(?:door|window|roof) schedules?)\b/i],
+  ['Exterior building elevations', /\bexterior(?: building)? elevations?\b/i],
+  ['Building sections / details', /\b(?:building sections?|construction details?)\b/i],
+  ['Interior elevations', /\binterior elevations?\b/i],
+  ['Structural plans', /\b(?:foundation|framing|structural)(?: plans?)?\b/i],
+] as const;
+
+const SUPPORTING_ASSIGNMENTS = [
+  ['Appendix B', /\bappendix b\b/i],
+  ['Appendix G1', /\bappendix g\s*1\b/i],
+  ['Attachment A', /\battachment a\b/i],
+  ['Supporting documents & checklists', /\b(?:supporting form|code[- ]checklist|review type code title section checklist summary)\b/i],
+] as const;
+
+export function isTitleSheetName(name: string): boolean {
+  return /^00[01](?: - | )Title Sheet(?:[ _-]+[a-z0-9][a-z0-9 ._-]*)?\.pdf$/i.test(name);
+}
 
 function cleanLine(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
 function normalizeComparison(value: string, key?: ExtractedValueKey): string {
+  if (key === 'owner') return value.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  if (key === 'buildingArea') return String(Number.parseFloat(value.replaceAll(',', '')));
   let normalized = value.toLowerCase();
   if (key === 'address') {
     normalized = normalized
@@ -161,7 +99,7 @@ function addCandidate(
   const list = bucket.get(key) ?? [];
   // Deduplicate identical snippet within the same file/page
   if (!list.some((item) => item.fileId === file.id && item.page === page && item.normalized === normalized)) {
-    list.push({ fileId: file.id, fileName: file.exportName, page, raw: cleaned, normalized, snippet: cleanLine(snippet) });
+    list.push({ fileId: file.id, fileName: file.exportName, revision: file.revision, page, raw: cleaned, normalized, snippet: cleanLine(snippet) });
   }
   bucket.set(key, list);
 }
@@ -195,10 +133,8 @@ export function extractProjectValues(documents: DocumentRecord[]): ExtractedValu
       const projectName = matchFirst(text, /\b(?:Job\s+Description|Project\s+name)[ \t]*:[ \t]*([^\n]+)/i);
       if (projectName) addCandidate(candidates, 'projectName', file, page.page, projectName.value, snippetAround(text, projectName.index, projectName.length));
 
-      const owner = matchFirst(text, /\bconsultant\(s\)\s*\n+([^\n]+)/i)
-        ?? matchFirst(text, /\bOwner\s*:\s*([^|\n]+)/i);
-      if (owner && !/^(?:project\s+location|land\s+use)/i.test(owner.value.trim())) {
-        addCandidate(candidates, 'owner', file, page.page, owner.value, snippetAround(text, owner.index, owner.length));
+      for (const owner of text.matchAll(/(?:^|\|)[ \t]*(?:property\s+)?owner(?:\s+name)?[ \t]*:[ \t]*([^|\r\n]+)/gim)) {
+        addCandidate(candidates, 'owner', file, page.page, owner[1], cleanLine(owner[0]).slice(0, 160));
       }
 
       const scopeIdx = text.search(/\bscope\s+of\s+work\b/i);
@@ -226,9 +162,9 @@ export function extractProjectValues(documents: DocumentRecord[]): ExtractedValu
         ?? matchFirst(text, /\bfloor\s+area\s*:\s*([\d,]+(?:\.\d+)?\s*sq\.?\s*ft\.?)/i);
       if (floorArea) addCandidate(candidates, 'floorArea', file, page.page, floorArea.value, snippetAround(text, floorArea.index, floorArea.length));
 
-      const buildingArea = matchFirst(text, /\bmax\.\s*allowable\s+lot\s+coverage\s+area\s*[:=]\s*([\d,]+(?:\.\d+)?\s*sq\.?\s*ft\.?)/i)
-        ?? matchFirst(text, /\bbuilding\s+area\s*[:=]\s*([\d,]+(?:\.\d+)?\s*sq\.?\s*ft\.?)/i);
-      if (buildingArea) addCandidate(candidates, 'buildingArea', file, page.page, buildingArea.value, snippetAround(text, buildingArea.index, buildingArea.length));
+      for (const area of text.matchAll(/(?:^|\|)[ \t]*(?:actual[ \t]+)?building[ \t]+area[ \t]*[:=][ \t]*([\d,]+(?:\.\d+)?[ \t]*sq\.?[ \t]*ft\.?)/gim)) {
+        addCandidate(candidates, 'buildingArea', file, page.page, area[1], cleanLine(area[0]));
+      }
 
       const far = matchFirst(text, /\b(?:FAR|floor\s+area\s+ratio)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)/i);
       if (far) addCandidate(candidates, 'far', file, page.page, far.value, snippetAround(text, far.index, far.length));
@@ -250,20 +186,20 @@ export function extractProjectValues(documents: DocumentRecord[]): ExtractedValu
   const entries: ExtractedValueEntry[] = VALUE_DEFS.map(({ key, label }) => {
     const list = candidates.get(key) ?? [];
     if (list.length === 0) {
-      return { key, label, value: '', status: 'missing', occurrences: [] };
+      return { key, label, value: '', status: 'missing', occurrences: [], candidates: [] };
     }
-    const distinct = new Map<string, string>();
-    for (const item of list) {
-      if (!distinct.has(item.normalized)) distinct.set(item.normalized, item.raw);
-    }
-    const status = distinct.size > 1 ? 'conflicting' : 'found';
-    const value = [...distinct.values()].join(' / ');
+    const distinct = new Map<string, ExtractedValueEntry['candidates'][number]>();
+    const occurrences = list.map(({ normalized, ...occurrence }) => {
+      const candidate = distinct.get(normalized) ?? { value: occurrence.raw, occurrences: [] };
+      candidate.occurrences.push(occurrence);
+      distinct.set(normalized, candidate);
+      return occurrence;
+    });
+    const grouped = [...distinct.values()];
     return {
-      key,
-      label,
-      value,
-      status,
-      occurrences: list.map(({ fileId, fileName, page, snippet }) => ({ fileId, fileName, page, snippet })),
+      key, label, occurrences, candidates: grouped,
+      value: grouped.map((candidate) => candidate.value).join(' / '),
+      status: grouped.length > 1 ? 'conflicting' : 'found',
     };
   });
 
@@ -286,27 +222,32 @@ export function extractProjectValues(documents: DocumentRecord[]): ExtractedValu
 
 /** Suggest CivCheck document-type assignments from filenames and extracted text. */
 export function suggestDocumentAssignments(documents: DocumentRecord[]): DocumentAssignmentItem[] {
-  const completed = documents.filter((doc) => doc.status === 'complete' || doc.pages.length > 0 || Boolean(doc.exportName));
-  return ASSIGNMENT_SLOTS.map((slot) => {
-    const assignedFiles: DocumentAssignmentItem['assignedFiles'] = [];
-    for (const doc of completed) {
-      const text = doc.pages.map((page) => page.text).join('\n');
-      const result = slot.match(doc, text);
-      if (result) {
-        assignedFiles.push({
-          fileId: doc.id,
-          fileName: doc.exportName,
-          confidence: result.confidence,
-          reason: result.reason,
-        });
-      }
-    }
-    return {
-      docType: slot.docType,
-      requiredGroup: slot.requiredGroup,
-      assignedFiles,
-    };
-  });
+  const slots = [
+    ...PLAN_ASSIGNMENTS.map(([docType, pattern]) => ({ docType, pattern, requiredGroup: 'plan' as const })),
+    ...SUPPORTING_ASSIGNMENTS.map(([docType, pattern]) => ({ docType, pattern, requiredGroup: 'supporting' as const })),
+  ];
+  const completed = documents.filter((doc) => doc.status === 'complete' && doc.pages.length > 0);
+  return slots.map(({ docType, pattern, requiredGroup }) => ({
+    docType, requiredGroup,
+    assignedFiles: completed.filter((doc) => doc.kind === requiredGroup).flatMap((doc) => {
+      const filename = doc.exportName.replaceAll('_', ' ');
+      const filenameMatch = docType === 'Title sheet' ? isTitleSheetName(doc.exportName) : pattern.test(filename);
+      // The first named line of a sheet and the filename are separate signals.
+      // A text search elsewhere on the sheet could match its cross-references.
+      const pages = doc.pages.filter((page) => {
+        const lines = page.text.split('\n', 7).map((line) => line.trim());
+        const heading = lines.find((line) => line && !/^synthetic (?:demo|demonstration)\s*$/i.test(line));
+        return heading !== undefined && pattern.test(heading);
+      }).map((page) => page.page);
+      if (!filenameMatch && !pages.length) return [];
+      return [{
+        fileId: doc.id, fileName: doc.exportName, pages,
+        confidence: filenameMatch && pages.length > 0 ? 'high' : 'medium',
+        reason: filenameMatch && pages.length ? 'Filename and page heading match'
+          : filenameMatch ? 'Filename match. Verify the pages.' : 'Page heading match. Verify the document type.',
+      }];
+    }),
+  }));
 }
 
 const CHECKLIST_REVIEW_TYPES = [
@@ -409,28 +350,22 @@ export function parseCodeChecklists(documents: DocumentRecord[]): ChecklistItem[
 }
 
 /** Extract sheet numbers listed in an index-to-drawings block (e.g. on 000 or A001). */
-export function extractSheetIndexEntries(documents: DocumentRecord[]): Array<{ sheetId: string; fileId: string; fileName: string }> {
-  const found: Array<{ sheetId: string; fileId: string; fileName: string }> = [];
-  const seen = new Set<string>();
+export function extractSheetIndexEntries(documents: DocumentRecord[]): Array<{ sheetId: string; fileId: string; fileName: string; page: number }> {
+  const found: Array<{ sheetId: string; fileId: string; fileName: string; page: number }> = [];
   for (const doc of documents) {
     if (doc.kind !== 'plan' || doc.status !== 'complete') continue;
-    if (!/^(?:00[01]|A001)\b/i.test(doc.exportName)) continue;
     for (const page of doc.pages) {
-      const hasIndexHeader = /\b(?:sheet\s+index|index\s+to\s+drawings|(?:drawing|sheet)\s+list|index\s+of\s+(?:drawings|sheets)|sht\s+no\.)\b/i.test(page.text);
-      if (!hasIndexHeader) continue;
-      // Look for standalone sheet codes like 000, A001, S001 on their own lines or in an index table
-      const lines = page.text.split('\n').map((l) => l.trim());
-      for (const line of lines) {
-        const m = /^(00[01]|[A-Z]{1,2}\d{3})(?:\s*-\s*|\s+|$)/.exec(line);
-        if (!m) continue;
-        const code = m[1].toUpperCase();
-        // Exclude code section numbers like R301 or C104 that aren't sheet prefixes
-        if (/^(?:R\d{3}|C\d{3}|H\d{3})/.test(code) && !documents.some((d) => d.exportName.toUpperCase().startsWith(code))) continue;
-        if (!seen.has(code)) {
-          seen.add(code);
-          found.push({ sheetId: code, fileId: doc.id, fileName: doc.exportName });
-        }
+      const lines = page.text.split('\n').map((line) => line.trim());
+      const start = lines.findIndex((line) => /^(?:sheet index|drawing index|index to drawings|(?:drawing|sheet) list|index of (?:drawings|sheets))\s*:?\s*$/i.test(line));
+      if (start < 0) continue;
+      const codes = new Set<string>();
+      for (const line of lines.slice(start + 1, start + 122)) {
+        if (!line || (!codes.size && /^(?:(?:sheet|sht|drawing)\s+(?:no\.?|number|title)|description)\b/i.test(line))) continue;
+        const row = /^([A-Z]{0,2}\d{3})(?:(?:\s*[-–—]\s*|\s+)[A-Z].*)?$/i.exec(line);
+        if (!row || /\b(?:building code|code section|code reference|IRC|IBC)\b/i.test(line)) break;
+        codes.add(row[1].toUpperCase());
       }
+      for (const sheetId of codes) found.push({ sheetId, fileId: doc.id, fileName: doc.exportName, page: page.page });
     }
   }
   return found;

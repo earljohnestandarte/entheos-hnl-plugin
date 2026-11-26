@@ -232,7 +232,7 @@ describe('analyzeDocuments: naming', () => {
     expect(analyzeDocuments([document({ exportName: '../title.pdf' })]).formatChecksComplete).toBe(false);
   });
 
-  it.each(['000 - Title Sheet.pdf', '001 - Title Sheet.pdf', '001 - title sheet.PDF', '000 Title Sheet.pdf', '001 Title Sheet.pdf'])
+  it.each(['000 - Title Sheet.pdf', '001 - Title Sheet.pdf', '001 - title sheet.PDF', '000 Title Sheet.pdf', '001 Title Sheet.pdf', '001 - Title Sheet_Index_Data Table.pdf'])
     ('accepts the explicit title plan %s', exportName => {
       expect(analyzeDocuments([document({ exportName })]).formatChecksComplete).toBe(true);
     });
