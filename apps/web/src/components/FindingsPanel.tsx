@@ -296,8 +296,12 @@ export function FindingsPanel({
           <h2>Preparation checklist</h2>
         </div>
         {items.length > 0 && (
-          <span className={`panel-meta ${summary.fixCount ? 'is-warn' : ''}`}>
-            {summary.fixCount} {summary.fixCount === 1 ? 'fix' : 'fixes'}
+          <span className={`panel-meta ${summary.fixCount ? 'is-warn' : resolvedFixes.length > 0 ? 'is-ok' : ''}`}>
+            {summary.fixCount > 0
+              ? `${summary.fixCount} to fix`
+              : resolvedFixes.length > 0
+                ? `${resolvedFixes.length} fixed`
+                : '0 to fix'}
           </span>
         )}
       </div>
@@ -370,11 +374,18 @@ export function FindingsPanel({
                   const count = category === 'review'
                     ? openReviewCount
                     : summary.findings.filter((finding) => finding.category === category).length;
+                  const allFixesDone = category === 'fix' && count === 0 && resolvedFixes.length > 0;
+                  const allReviewsDone = category === 'review' && count === 0 && summary.reviewCount > 0;
                   const pillTone: StatusTone = category === 'fix'
-                    ? (count > 0 ? 'warning' : resolvedFixes.length > 0 ? 'success' : 'neutral')
+                    ? (count > 0 ? 'warning' : allFixesDone ? 'success' : 'neutral')
                     : category === 'review'
-                      ? (count > 0 ? 'info' : summary.reviewCount > 0 ? 'success' : 'neutral')
+                      ? (count > 0 ? 'info' : allReviewsDone ? 'success' : 'neutral')
                       : meta.tone;
+                  const pillText = allFixesDone
+                    ? `Fixed (${resolvedFixes.length})`
+                    : allReviewsDone
+                      ? `Verified (${verifiedReviewCount})`
+                      : `${meta.label} (${count})`;
                   return (
                     <button
                       type="button"
@@ -384,7 +395,7 @@ export function FindingsPanel({
                       onClick={() => setFilter(category)}
                     >
                       <span className={`status-dot tone-${pillTone}`} aria-hidden="true" />
-                      <span>{meta.label} ({count})</span>
+                      <span>{pillText}</span>
                     </button>
                   );
                 })}
@@ -406,12 +417,21 @@ export function FindingsPanel({
                 const groupedVerifiedCount = titleBlockReviews.filter((finding) => verifiedSet.has(finding.id)).length;
 
                 const groupResolvedFixes = category === 'fix' ? resolvedFixes : [];
+                const groupFixesDone = category === 'fix' && findings.length === 0 && groupResolvedFixes.length > 0;
+                const groupReviewsDone = category === 'review' && openInCategory === 0 && findings.length > 0;
+                const groupTone: StatusTone = groupFixesDone || groupReviewsDone ? 'success' : meta.tone;
+                const groupTitle = groupFixesDone ? 'Fixed' : groupReviewsDone ? 'Verified' : meta.groupTitle;
+                const groupDescription = groupFixesDone
+                  ? 'All covered file-check fixes in this session have been resolved.'
+                  : groupReviewsDone
+                    ? 'All manual review items for the current file revisions have been verified.'
+                    : meta.description;
                 return (
-                  <section className="finding-group" key={category} aria-label={meta.groupTitle}>
+                  <section className="finding-group" key={category} aria-label={groupTitle}>
                     <div className="finding-group-head">
                       <div className="finding-group-title">
-                        <span className={`status-dot tone-${meta.tone}`} aria-hidden="true" />
-                        <h3>{meta.groupTitle}</h3>
+                        <span className={`status-dot tone-${groupTone}`} aria-hidden="true" />
+                        <h3>{groupTitle}</h3>
                       </div>
                       <span className="panel-meta">
                         {category === 'review' && verifiedReviewCount > 0
@@ -421,7 +441,7 @@ export function FindingsPanel({
                             : findings.length}
                       </span>
                     </div>
-                    <p className="muted">{meta.description}</p>
+                    <p className="muted">{groupDescription}</p>
 
                     {!findings.length && !groupResolvedFixes.length ? (
                       <div className="empty-state compact">

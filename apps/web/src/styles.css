@@ -416,6 +416,7 @@ small, .small { font-size: 12px; line-height: 1.45; }
 .panel-heading h2 { margin-bottom: 0; }
 .panel-meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .panel-meta.is-warn { color: var(--warn); font-weight: 500; }
+.panel-meta.is-ok { color: var(--success); font-weight: 500; }
 .panel-intro { margin: 24px 0 6px; }
 .panel-footer { border-top: 1px solid var(--line); padding: 20px 0 0; margin-top: 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .panel-footer p { margin: 0; max-width: 420px; }

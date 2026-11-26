@@ -310,10 +310,16 @@ describe('App preparation journeys', () => {
     expect(screen.getByRole('button', { name: 'Reopen review' })).toBeTruthy();
     expect(findingsRegion.getByText(/1 verified/)).toBeTruthy();
 
+    for (const button of screen.getAllByRole('button', { name: 'Mark verified' })) {
+      fireEvent.click(button);
+    }
+    expect(findingsRegion.getByRole('region', { name: 'Verified' })).toBeTruthy();
+    expect(findingsRegion.getByRole('button', { name: /Verified \(/ })).toBeTruthy();
+
     navigate(/Prepare for CivCheck/);
     const handoffRegion = within(screen.getByRole('region', { name: 'CivCheck handoff' }));
     expect(handoffRegion.getByText(/1 fixed/)).toBeTruthy();
-    expect(handoffRegion.getByText(/1 verified/)).toBeTruthy();
+    expect(handoffRegion.getByText(new RegExp(`${initialCount} verified`))).toBeTruthy();
   });
 
   it('does not duplicate sample generation or files on repeated start clicks', async () => {
