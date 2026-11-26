@@ -58,7 +58,14 @@ function SmoothExpander({ label, children }: { label: string; children: ReactNod
 }
 
 const FILENAME_RULES = new Set(['safe-filename', 'plan-filename', 'title-filename', 'duplicate-filename']);
-const PDF_REPLACE_RULES = new Set(['plan-layout', 'plan-page-count', 'common-sheet-size', 'analysis-unavailable']);
+const PDF_REPLACE_RULES = new Set([
+  'plan-layout',
+  'plan-page-count',
+  'common-sheet-size',
+  'analysis-unavailable',
+  'page-information-unavailable',
+  'reference-unavailable',
+]);
 
 function FindingCard({
   finding,
@@ -317,18 +324,18 @@ export function FindingsPanel({
       ) : (
         <>
           <div className={`status-callout ${summary.formatChecksComplete ? 'is-ok' : 'is-warn'}`}>
+            <StatusBreakdown
+              summary={summary}
+              fileCount={items.length}
+              working={busy}
+              errorFileCount={errorFileCount}
+              verifiedReviewCount={verifiedReviewCount}
+              resolvedFixCount={resolvedFixes.length}
+            />
             <p>{summary.label}. Independent local preparation check, not CivCheck approval or proof of submission readiness.</p>
             <p>Sheet index · {summary.sheetIndexCoverage === 'compared' ? 'Compared'
               : summary.sheetIndexCoverage === 'partial' ? 'Partially compared' : 'Needs manual review'}</p>
           </div>
-          <StatusBreakdown
-            summary={summary}
-            fileCount={items.length}
-            working={busy}
-            errorFileCount={errorFileCount}
-            verifiedReviewCount={verifiedReviewCount}
-            resolvedFixCount={resolvedFixes.length}
-          />
           {items.some(({ record }) => record.status !== 'complete') && (
             <p className="fix-hint">Some files are still processing or could not be read. Their contents have not been assessed.</p>
           )}

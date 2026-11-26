@@ -29,7 +29,6 @@ export function PreparationSummary({ summary, fileCount, working, errorFileCount
             errorFileCount={errorFileCount}
             verifiedReviewCount={verifiedReviewCount}
             resolvedFixCount={resolvedFixCount}
-            compact
           />
         )}
         {working && fileCount > 0 && (

@@ -676,80 +676,23 @@ small, .small { font-size: 12px; line-height: 1.45; }
 .summary-stats dd.stat-ok { color: var(--success); }
 .summary-stats dd.stat-neutral { color: var(--muted); }
 .summary-footnote { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
-.status-breakdown {
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--surface);
-  margin: 0 0 16px;
-}
-.status-breakdown.is-compact {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  margin: 0 0 12px;
-}
-.status-breakdown-head {
+.status-verdict {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px 12px;
   flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+.status-callout .status-verdict {
+  justify-content: flex-start;
   margin-bottom: 8px;
 }
-.status-breakdown-detail {
+.status-verdict-detail {
   font-size: 12px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.status-bar-track {
-  display: flex;
-  gap: 2px;
-  height: 7px;
-  width: 100%;
-  border-radius: 3px;
-  overflow: hidden;
-  background: var(--surface-subtle);
-}
-.status-breakdown.is-compact .status-bar-track { height: 6px; }
-.status-bar-segment {
-  display: block;
-  height: 100%;
-  min-width: 4px;
-  transition: flex-grow 200ms var(--ease-in-out);
-}
-.status-bar-segment.tone-danger { background: var(--danger-border); }
-.status-bar-segment.tone-warning { background: var(--warn-border); }
-.status-bar-segment.tone-success { background: var(--success-border); }
-.status-bar-segment.tone-info { background: var(--info-border); }
-.status-bar-segment.tone-neutral { background: #cbd5e1; }
-.status-breakdown-legend {
-  list-style: none;
-  padding: 0;
-  margin: 8px 0 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-  font-size: 12px;
-  color: var(--secondary);
-  font-variant-numeric: tabular-nums;
-}
-.status-breakdown-legend li {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.status-swatch {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-.status-swatch.tone-danger { background: var(--danger-border); }
-.status-swatch.tone-warning { background: var(--warn-border); }
-.status-swatch.tone-success { background: var(--success-border); }
-.status-swatch.tone-info { background: var(--info-border); }
-.status-swatch.tone-neutral { background: #cbd5e1; }
 .coverage-card h3 { font-size: 14px; margin-bottom: 4px; }
 .coverage-card p { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
 .session-card strong { display: block; font-size: 13px; font-weight: 500; color: var(--ink); }
