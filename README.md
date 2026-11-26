@@ -22,9 +22,11 @@ Open **http://127.0.0.1:5173**. The development server binds to loopback; this i
 ```sh
 corepack pnpm check
 corepack pnpm audit --prod
+corepack pnpm exec playwright install chromium
+corepack pnpm test:e2e
 ```
 
-`check` runs TypeScript checking, Vitest tests, and the production build. All pass locally, including **229 automated tests** (the original 196 plus onboarding, component, session, and application-flow regressions). The full `corepack pnpm audit` reports no known vulnerabilities; this is not a security certification. The generated-sample correction flow, production PDF preview/page navigation, and ZIP download were verified in the in-app browser. Native chooser/drop automation and full browser/accessibility acceptance remain unverified.
+`check` runs TypeScript checking, Vitest tests, and the production build. The Playwright suite exercises the production build with generated and user-supplied synthetic PDFs, including file and folder chooser input, drag-and-drop, replacement, page preview, and ZIP inspection. The browser suite omits the benchmark by default. Set `PREFLIGHT_BENCHMARK=1` to time the 12-file synthetic set and `PLAYWRIGHT_CHANNEL=chrome` or `msedge` to use an installed browser. See [prototype status](docs/PROTOTYPE_STATUS.md) for measured results and pending acceptance work.
 
 To serve the production build locally, run `corepack pnpm --filter @hnl/web preview` after `corepack pnpm build`, then open http://127.0.0.1:4173.
 
@@ -35,7 +37,7 @@ To serve the production build locally, run `corepack pnpm --filter @hnl/web prev
 3. Select **Review filename**, inspect the suggestion, then **Accept name**. **Undo rename** restores the original name; source PDF bytes are never rewritten.
 4. Open **View PDF**, navigate pages, and expand **Extracted text**. Review the per-file and set-level findings under **Fix**, **Review**, **Advice**, and **Not assessed**.
 5. Use **Use corrected sample PDF** on the portrait plan, or **Replace** with another safe test PDF. Replacement increments the file revision and recalculates findings. The corrected sample fixes only its filename/orientation, not design compliance.
-6. Open **Prepare for CivCheck** and download the preparation ZIP. Covered file checks may complete, but manual reviews and unassessed checks remain; that is not submission readiness.
+6. Open **Prepare for CivCheck**. Rehearse plan order and classification, review suggested document pages, and open source pages for the owner, address, and TMK. Download the test-only ZIP once filenames are safe and distinct. Keep the test files and reports out of the live portal.
 
 The four local steps are **Set up → Add plans → Fix & review → Prepare for CivCheck**. They are not CivCheck progress counters. **How it works** reopens help without discarding files; **Set up** lets you rename the set. **Start a new preparation set** asks for confirmation before clearing the session.
 
@@ -54,17 +56,17 @@ reference/
   readiness.pdf         preparation reference, not a compliance report
 ```
 
-Export validates names/collisions and source revisions and verifies SHA-256 hashes against the original bytes. Unreadable/pending files and unsafe names block export; unresolved preparation findings may remain in an explicitly incomplete/non-compliance-determining package. The manifest sets `complianceAssessed: false` and `submissionReady: false` even after covered format checks complete.
+Export validates names and source revisions and verifies SHA-256 hashes against the original bytes. Unreadable or pending files and unsafe or duplicate names block export. Other preparation findings remain in the reference reports. Manifest version 2 records source provenance and page geometry. Full extracted page text stays in the browser workspace. The manifest records `testOnly: true`, `complianceAssessed: false`, and `submissionReady: false`.
 
 The ZIP is an organizational download, not an assumed CivCheck ingestion format. `reference/` files are for the user, **not upload candidates** or required forms. Any future authorized real-project handoff must use the appropriate individual source PDFs and current official instructions; never submit these synthetic samples as a real project. This app creates no certificate, CivCheck ID, or watermarked plans and does not automate portal actions.
 
 ## Bounds and limitations
 
 - **Unbenchmarked prototype bounds:** 20 files, 25 MB each, 100 MB total, 50 pages per file, and a 30-second PDF parse timeout. These are guardrails, not proven performance/capacity or the proposed 12-file/60-second target.
-- Fixed, pure deterministic demo rules are based on the repository walkthrough, **not independently verified current external sources**. Text cues do not establish actual evidence, calculations, or scope compliance.
+- The local demo checks use the repository walkthrough and selected examples from DPP’s public plan-format checklist. Current portal behavior and project-specific applicability still require verification. Extracted values and page matches are suggestions for human review.
 - Contracts are TypeScript types, not the planned Zod runtime-schema system. Hash/revision-linked current state is not persisted history or confirmed evidence.
 - No application server, OIDC, PostgreSQL, persistence/vault, backups, OCR, AI, extension, actual scope validation, automatic stamp-space checks, advanced document assignment, or verified value/answer bank exists yet.
-- Browser file-input/drop testing, broader accessibility/browser coverage, and benchmark evidence remain pending. Reduced preparation time and fewer CivCheck retries remain future pilot measurements, not observed benefits.
+- Screen-reader acceptance, measured preparer effort, and authorized pilot accuracy and retry data remain open. The [rehearsal protocol](docs/PREFLIGHT_RELIABILITY_PLAN.md#7-timed-preparer-rehearsal) measures hands-on work separately from app performance.
 
 ## Documentation
 

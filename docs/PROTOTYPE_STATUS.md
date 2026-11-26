@@ -1,7 +1,7 @@
 # Prototype status — S0
 
-**Updated:** 2026-11-25
-**State:** S0 with guided onboarding and redesigned preparation UI implemented and checked locally: TypeScript, 229 automated tests, production build, dependency audit, and the browser sample correction/export flow passed. Remaining verification limits are recorded below.
+**Updated:** 2026-11-26
+**State:** S0 includes the reliability changes, a test-only CivCheck handoff checklist, and production-browser acceptance coverage. The current rules remain demo rules. The timed preparer rehearsal and pilot remain open.
 **Scope:** Test-only first useful slice, not the full MVP, M0–M6 completion, or P00–P22 sign-off.
 
 ## 1. Safety and claims
@@ -10,7 +10,7 @@
 - The React/Vite app runs on loopback in one browser tab/session; all project data is memory-only.
 - **Refresh or tab closure loses the entire workspace.** There is no autosave, persistence, vault, or recovery.
 - Downloads are unencrypted user-controlled copies; clearing the workspace does not delete originals or downloads.
-- Fixed demonstration rules come from the repository walkthrough; current external requirements are not independently verified.
+- Fixed demonstration rules come from the repository walkthrough and selected examples from DPP’s public plan-format checklist. Scope-specific requirements and current portal behavior still need review.
 - “Covered file checks complete” is not document completeness, compliance, submission readiness, a CivCheck pass, or permit approval.
 - The app creates no CivCheck ID, certificate, watermarked plans, or automated submission. Synthetic samples must never be submitted as a real project.
 
@@ -32,6 +32,8 @@
 Individual removal currently acts immediately; only workspace clearing has a confirmation prompt. Rename undo is not general undo or recoverable action history.
 
 Covered demo checks include filename format/collisions, title filename, plan page count, dimensions/orientation, common plan size and text-layer availability. Title/index and FAR text cues are hints, not verified evidence or scope-specific value extraction. Supporting forms are excluded from plan-only formatting rules.
+
+Demo rule pack 0.3.0 uses explicit owner and building-area labels, lists conflicting values with their revision-linked sources, and checks drawing-index rows independently of the uploaded filenames. It supports the descriptive title filename shown in DPP’s checklist and flags multiple title candidates. Mapping suggestions use filename descriptions and page headings. The test handoff lists plan order, potential document pages, and source pages for owner, address, and tax map key. Imported CivCheck checklists appear as review material in the handoff. [DPP plan-format checklist, revised August 2025](https://www4.honolulu.gov/docushare/dsweb/Get/Document-347535/building-permit-checklist.pdf)
 
 ## 3. Try the correction path
 
@@ -61,7 +63,7 @@ Export checks source byte counts/SHA-256 hashes, safe filenames/case-insensitive
 
 Unreadable/pending sources or unsafe names prevent export; unresolved preparation findings may still be exported with explicit incomplete/non-compliance disclaimers. The manifest always records `complianceAssessed: false` and `submissionReady: false`.
 
-The ZIP is an organizational convenience, not an assumed CivCheck ingestion format. Reference reports are **not upload candidates** or required forms. The guide describes a future human-controlled handoff of appropriate individual source PDFs, not permission to submit synthetic examples or a claim of current portal validation.
+The ZIP and its reference reports are labeled for local testing. Export pack 1.0.0 uses manifest schema 2. The manifest records page geometry and generated or user-supplied test provenance. Full extracted page text stays in the application. The snapshot fingerprint is based on versioned source metadata and findings. The test guide supports local rehearsal with individual PDFs.
 
 ## 5. Architecture and tooling
 
@@ -79,20 +81,27 @@ The ZIP is an organizational convenience, not an assumed CivCheck ingestion form
 
 | Evidence | Status |
 | --- | --- |
-| Core unit checks | 169 tests passed: filenames, geometry, supporting/plan distinction, unresolved analysis, current revisions and CSV safety |
-| Export, generated-demo and deadline checks | 27 tests passed: source-preserving ZIP, hashes/stale references/collisions, fixture dimensions, cancellation/deadline settlement |
-| Onboarding, workspace, session and full-App regressions | 33 additional tests passed; 229 total. Covers validation, both entry paths, back/name preservation, guide progress, help retaining files, reset confirmation, late async work and repeated starts |
-| Typecheck/build and dependency audit | `corepack pnpm check` passed. Full `corepack pnpm audit` reports no known vulnerabilities after upgrading Vitest to 4.1.12; not a complete security review |
-| Browser sample flow and downloaded output | In-app Chromium: generated sample parsing, filename preview/accept (2 fixes to 1), corrected replacement (0 covered fixes, manual reviews remain), production PDF canvas/page navigation, and observed ZIP download event passed. ZIP structure/hash invariants also pass unit tests |
-| File chooser/drop and replacement uploads | Not end-to-end verified: the available browser backend cannot automate native file uploads. Generated PDFs exercise the same parser/add/replace paths, but this does not substitute for native chooser/drop testing |
-| Chrome/Edge, keyboard/screen reader, responsive layout | Desktop layout/PDF canvas and 390px mobile handoff visually checked; no horizontal overflow at the checked width. Escape closes the preview. Full Chrome/Edge, keyboard and screen-reader/WCAG acceptance not completed |
-| PDF/rule/export duration, peak memory and real-sample accuracy | Not benchmarked; the proposed 12-file/60-second target remains unproven |
+| Typecheck, unit, and component tests | 249 tests passed across the core, exports, PDF generation, deadlines, and workspace/session flows. The dependency audit reported no known vulnerabilities. |
+| Production browser acceptance | Three Playwright acceptance tests passed in Chrome and Edge. They exercise the guided handoff, file and folder chooser events, drag-and-drop, ZIP inspection, and source replacement with the real PDF worker. The suite covers malformed, scanned, and password-protected inputs. |
+| Keyboard and responsive checks | The browser test opens evidence by keyboard and checks focus return after Escape. It checks the handoff for horizontal overflow at 390 px. Screen-reader and full WCAG acceptance remain open. |
+| App performance | The six Edge trials below passed the 60-second target on the 12-file synthetic fixture. Larger workloads, worker/process memory, and real-sample accuracy remain open. |
+
+Benchmark on Windows 11 Pro with Edge `158.0.4370.33`, Intel Core i7-10510U, and 16 GiB RAM. The fixture has 12 files and 11,272 bytes with aggregate source hash `b3701874a011e5cfdaa471ac6887443021acedf030281125a5f486538c4baf39`. Each cold run used a fresh context. The warm run followed in that context. Analysis time includes upload through final findings. Preview and ZIP timings are separate. The reported heap is a sampled renderer JS heap estimate.
+
+| Trial | Cache | Analysis | Preview | ZIP | Longest main-thread task | Reported heap |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | Cold | 4.01 s | 0.67 s | 0.50 s | 144 ms | 19.4 MiB |
+| 1 | Warm | 3.97 s | 0.61 s | 0.49 s | 114 ms | 23.3 MiB |
+| 2 | Cold | 4.21 s | 0.70 s | 0.67 s | 170 ms | 19.5 MiB |
+| 2 | Warm | 4.04 s | 0.77 s | 0.54 s | 125 ms | 23.4 MiB |
+| 3 | Cold | 4.87 s | 0.99 s | 0.72 s | 196 ms | 17.7 MiB |
+| 3 | Warm | 4.95 s | 0.70 s | 0.62 s | 159 ms | 23.3 MiB |
 
 Reduced preparation time and fewer CivCheck retries remain future pilot measurements against a baseline, not achieved S0 outcomes. No external research or real-CivCheck pass is asserted by this status update.
 
 ## 7. Deliberately absent
 
-No application server, OIDC, PostgreSQL, persistent storage, encrypted vault, autosave, backups/restore, true action/check history, evidence confirmations, verified value/answer bank, project/scope question graph, actual scope validation, advanced document/page assignment, automatic stamp-space checks, value extraction, rule publication, OCR, AI, browser extension, or portal automation is delivered by S0.
+Still open are an application server, OIDC, PostgreSQL, persistent storage, encrypted recovery, action/check history, a confirmed value and answer bank, scope-specific rules, validated document assignments, automatic stamp-space checks, rule publication, OCR, a browser extension, and portal automation.
 
 Classification is not a document assignment. Extracted text is not a confirmed value. A source hash and revision are not durable history. A reference ZIP is not a recovery backup. Manual/not-assessed findings cannot be dismissed into a compliance pass.
 
@@ -106,8 +115,8 @@ This intentionally defers encrypted storage before the first test-only demo beca
 
 ## 9. Next gates, not current capabilities
 
-1. Complete remaining native chooser/drop, malformed-PDF browser, full keyboard/screen-reader, and explicit Chrome/Edge checks; retain the passing automated and sample-flow regression evidence above.
-2. Measure extraction/rendering/rules/export performance and memory on a labeled workload; revise limits only with evidence.
+1. Complete screen-reader and full accessibility review. Run the [timed preparer rehearsal](PREFLIGHT_RELIABILITY_PLAN.md#7-timed-preparer-rehearsal) and record hands-on time and avoidable corrections.
+2. Measure extraction, rule evaluation, process memory, and export performance on larger labeled workloads before setting pilot limits.
 3. Verify current source rules and supported scope; obtain authorized samples and agreed accuracy/acceptance targets.
 4. Implement/review deployed identity, encrypted persistence, access/privacy controls, recovery/backups and required security/accessibility checks before real client data.
 5. Complete the retained scope/evidence/assignment/value/readiness and pilot acceptance work; extension/integrations remain separately permission-gated.
