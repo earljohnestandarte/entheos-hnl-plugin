@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { analyzeDocuments, isSafeExportName, looksLikeCodeChecklist, sheetIdentifier } from '@hnl/core';
-import { LIMITS, type CheckSummary, type DocumentRecord, type FileKind } from '@hnl/contracts';
+import { LIMITS, type CheckSummary, type DocumentRecord, type FileKind, type Finding } from '@hnl/contracts';
 import { readPdf, UnsupportedPdfError } from '../lib/pdf';
 import type { SourceDocument } from '../lib/export';
 import { isOmittedReference } from '../lib/handoffFiles';
+import { fileVerificationKey } from '../lib/exportNames';
 
 export type Item = SourceDocument & { demo: boolean; syntheticSample: boolean; manualKind?: boolean };
 
@@ -76,9 +77,19 @@ export interface PreparationSession {
   rename: (id: string, name: string) => void;
   classify: (id: string, kind: FileChoice) => void;
   omitReference: (id: string) => void;
+  verifiedFindingIds: string[];
+  toggleFindingVerified: (findingId: string) => void;
+  setFindingsVerified: (findingIds: string[], verified: boolean) => void;
+  verifiedFileKeys: Record<string, string>;
+  verifyFile: (id: string) => void;
+  resolvedFixes: Finding[];
 }
 
 const DEFAULT_PROJECT_NAME = 'My preparation set';
+
+function fixFindingKey(finding: Pick<Finding, 'ruleId' | 'fileId'>): string {
+  return JSON.stringify([finding.ruleId, finding.fileId ?? null]);
+}
 
 export function usePreparationSession(): PreparationSession {
   const [items, setItems] = useState<Item[]>([]);
@@ -95,7 +106,49 @@ export function usePreparationSession(): PreparationSession {
   const [error, setError] = useState('');
   const [replacingId, setReplacingId] = useState<string | null>(null);
   const [removed, setRemoved] = useState<{ item: Item; index: number } | null>(null);
+  const [verifiedFindingIds, setVerifiedFindingIds] = useState<string[]>([]);
+  const [verifiedFileKeys, setVerifiedFileKeys] = useState<Record<string, string>>({});
+  const [seenFixMap, setSeenFixMap] = useState<Record<string, Finding>>({});
   const summary = useMemo(() => analyzeDocuments(items.map((item) => item.record)), [items]);
+
+  useEffect(() => {
+    if (items.length === 0) {
+      setSeenFixMap((previous) => (Object.keys(previous).length === 0 ? previous : {}));
+      return;
+    }
+    const activeIds = new Set(items.map((item) => item.record.id));
+    const currentFixes = summary.findings.filter((finding) => finding.category === 'fix');
+    setSeenFixMap((previous) => {
+      let changed = false;
+      const next: Record<string, Finding> = {};
+      for (const [key, finding] of Object.entries(previous)) {
+        if (!finding.fileId || activeIds.has(finding.fileId)) {
+          next[key] = finding;
+        } else {
+          changed = true;
+        }
+      }
+      for (const finding of currentFixes) {
+        const key = fixFindingKey(finding);
+        if (!next[key] || next[key].id !== finding.id) {
+          next[key] = finding;
+          changed = true;
+        }
+      }
+      return changed ? next : previous;
+    });
+  }, [items, summary]);
+
+  const resolvedFixes = useMemo(() => {
+    if (!items.length) return [];
+    const activeIds = new Set(items.map((item) => item.record.id));
+    const activeFixKeys = new Set(
+      summary.findings.filter((finding) => finding.category === 'fix').map(fixFindingKey),
+    );
+    return Object.entries(seenFixMap)
+      .filter(([key, finding]) => !activeFixKeys.has(key) && (!finding.fileId || activeIds.has(finding.fileId)))
+      .map(([, finding]) => finding);
+  }, [items, summary, seenFixMap]);
 
   function changeItems(update: (previous: Item[]) => Item[]): void {
     if (!mounted.current) return;
@@ -322,6 +375,9 @@ export function usePreparationSession(): PreparationSession {
     exportingRef.current = false;
     changeItems(() => []);
     setRemoved(null); setReplacingId(null);
+    setVerifiedFindingIds([]);
+    setVerifiedFileKeys({});
+    setSeenFixMap({});
     setProjectName(DEFAULT_PROJECT_NAME);
     setWorking(false); setExporting(false); setError('');
     setNotice('Session cleared. Downloaded copies, if any, are not deleted.');
@@ -383,10 +439,36 @@ export function usePreparationSession(): PreparationSession {
     }));
   }
 
+  function toggleFindingVerified(findingId: string): void {
+    if (!mounted.current) return;
+    setVerifiedFindingIds((current) =>
+      current.includes(findingId) ? current.filter((id) => id !== findingId) : [...current, findingId]);
+  }
+
+  function setFindingsVerified(findingIds: string[], verified: boolean): void {
+    if (!mounted.current || !findingIds.length) return;
+    setVerifiedFindingIds((current) => {
+      const next = new Set(current);
+      for (const id of findingIds) {
+        if (verified) next.add(id);
+        else next.delete(id);
+      }
+      return [...next];
+    });
+  }
+
+  function verifyFile(id: string): void {
+    if (!mounted.current) return;
+    const item = itemsRef.current.find((entry) => entry.record.id === id);
+    if (!item) return;
+    setVerifiedFileKeys((current) => ({ ...current, [id]: fileVerificationKey(item.record) }));
+  }
+
   return {
     items, summary, busy: working || exporting, working, exporting, notice, error,
     projectName, setProjectName, addFiles, loadDemo, correctDemo, replaceFile,
     remove, removedName: removed?.item.record.exportName, undoRemove, replacingId, cancelReplacement, clearFeedback,
     clear, exportPackage, rename, classify, omitReference,
+    verifiedFindingIds, toggleFindingVerified, setFindingsVerified, verifiedFileKeys, verifyFile, resolvedFixes,
   };
 }
