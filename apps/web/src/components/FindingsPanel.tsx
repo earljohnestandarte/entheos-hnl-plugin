@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { DEMO_RULE_PACK, type CheckSummary, type DocumentRecord, type Finding, type FindingCategory } from '@hnl/contracts';
 import { IconCheck, IconCopy, IconEye } from './Icons';
 
@@ -124,8 +124,11 @@ export function FindingsPanel({
   initialFilter = 'all',
 }: FindingsPanelProps) {
   const [filter, setFilter] = useState<FindingCategory | 'all'>(initialFilter);
-  const [tab, setTab] = useState<FindingsTab>('checklist');
+  const [requestedTab, setTab] = useState<FindingsTab>('checklist');
+  const tabSetId = useId();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState(false);
+  const [valueSelections, setValueSelections] = useState<Record<string, { signature: string; index: number }>>({});
   const [checklistFilter, setChecklistFilter] = useState<string>('all');
   const [checklistSearch, setChecklistSearch] = useState('');
 
@@ -133,6 +136,39 @@ export function FindingsPanel({
   const hasValues = foundValues.length > 0;
   const hasMapping = summary.assignments.some((slot) => slot.assignedFiles.length > 0);
   const hasChecklist = summary.checklistItems.length > 0;
+  const tabs: Array<{ id: FindingsTab; label: string }> = [
+    { id: 'checklist', label: `Findings (${summary.findings.length})` },
+  ];
+  if (hasValues) tabs.push({ id: 'values', label: `Extracted values (${foundValues.length})` });
+  if (hasMapping) tabs.push({ id: 'mapping', label: 'Document map' });
+  if (hasChecklist) tabs.push({ id: 'imported', label: `Code checklist (${summary.checklistItems.length})` });
+  const tab = tabs.some(({ id }) => id === requestedTab) ? requestedTab : 'checklist';
+
+  function tabPanel(id: FindingsTab) {
+    return {
+      id: `${tabSetId}-panel-${id}`,
+      role: tabs.length > 1 ? 'tabpanel' : undefined,
+      'aria-labelledby': tabs.length > 1 ? `${tabSetId}-tab-${id}` : undefined,
+      hidden: tab !== id,
+      tabIndex: tabs.length > 1 && tab === id ? 0 : undefined,
+    };
+  }
+
+  function navigateTabs(event: KeyboardEvent<HTMLDivElement>) {
+    const index = tabs.findIndex(({ id }) => id === tab);
+    let next: number;
+    switch (event.key) {
+      case 'ArrowRight': next = (index + 1) % tabs.length; break;
+      case 'ArrowLeft': next = (index + tabs.length - 1) % tabs.length; break;
+      case 'Home': next = 0; break;
+      case 'End': next = tabs.length - 1; break;
+      default: return;
+    }
+    event.preventDefault();
+    const { id } = tabs[next];
+    setTab(id);
+    document.getElementById(`${tabSetId}-tab-${id}`)?.focus();
+  }
   const visibleCategories = categories.filter((category) => {
     if (filter !== 'all') return filter === category;
     if (category === 'fix' && summary.fixCount === 0) return false;
@@ -149,13 +185,17 @@ export function FindingsPanel({
   });
 
   function copyValue(key: string, value: string) {
-    if (!navigator.clipboard?.writeText) return;
+    setCopyError(false);
+    if (!navigator.clipboard?.writeText) {
+      setCopyError(true);
+      return;
+    }
     void navigator.clipboard.writeText(value).then(() => {
       setCopiedKey(key);
       window.setTimeout(() => {
         setCopiedKey((current) => (current === key ? null : current));
       }, 1800);
-    }).catch(() => undefined);
+    }).catch(() => setCopyError(true));
   }
 
   return (
@@ -181,6 +221,8 @@ export function FindingsPanel({
         <>
           <div className={`status-callout ${summary.formatChecksComplete ? 'is-ok' : 'is-warn'}`}>
             <p>{summary.label}. Independent local preparation check, not CivCheck approval or proof of submission readiness.</p>
+            <p>Sheet index · {summary.sheetIndexCoverage === 'compared' ? 'Compared'
+              : summary.sheetIndexCoverage === 'partial' ? 'Partially compared' : 'Needs manual review'}</p>
           </div>
           {items.some(({ record }) => record.status !== 'complete') && (
             <p className="fix-hint">Some files are still processing or could not be read. Their contents have not been assessed.</p>
@@ -197,54 +239,19 @@ export function FindingsPanel({
             </div>
           )}
 
-          {(hasValues || hasMapping || hasChecklist) && (
-            <div className="view-tabs" role="tablist" aria-label="Findings views">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab === 'checklist'}
-                className={`view-tab ${tab === 'checklist' ? 'is-active' : ''}`}
-                onClick={() => setTab('checklist')}
-              >
-                Findings ({summary.findings.length})
-              </button>
-              {hasValues && (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === 'values'}
-                  className={`view-tab ${tab === 'values' ? 'is-active' : ''}`}
-                  onClick={() => setTab('values')}
-                >
-                  Extracted values ({foundValues.length})
+          {tabs.length > 1 && (
+            <div className="view-tabs" role="tablist" aria-label="Findings views" onKeyDown={navigateTabs}>
+              {tabs.map(({ id, label }) => (
+                <button key={id} type="button" role="tab" id={`${tabSetId}-tab-${id}`}
+                  aria-controls={`${tabSetId}-panel-${id}`} aria-selected={tab === id} tabIndex={tab === id ? 0 : -1}
+                  className={`view-tab ${tab === id ? 'is-active' : ''}`} onClick={() => setTab(id)}>
+                  {label}
                 </button>
-              )}
-              {hasMapping && (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === 'mapping'}
-                  className={`view-tab ${tab === 'mapping' ? 'is-active' : ''}`}
-                  onClick={() => setTab('mapping')}
-                >
-                  Document map
-                </button>
-              )}
-              {hasChecklist && (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === 'imported'}
-                  className={`view-tab ${tab === 'imported' ? 'is-active' : ''}`}
-                  onClick={() => setTab('imported')}
-                >
-                  Code checklist ({summary.checklistItems.length})
-                </button>
-              )}
+              ))}
             </div>
           )}
 
-          {tab === 'checklist' && (
+          <div {...tabPanel('checklist')}>{tab === 'checklist' && (
             <>
               <div className="filter-bar" role="group" aria-label="Filter findings">
                 <button
@@ -346,20 +353,24 @@ export function FindingsPanel({
                 );
               })}
             </>
-          )}
+          )}</div>
 
-          {tab === 'values' && hasValues && (
+          {hasValues && <div {...tabPanel('values')}>{tab === 'values' && (
             <section className="insights-section" aria-label="Extracted project values">
               <div className="finding-group-head">
                 <h3>Extracted project values</h3>
                 <span className="panel-meta">{foundValues.length} detected</span>
               </div>
-              <p className="muted">Values parsed from PDF text layers for CivCheck intake checks. Always verify against the drawing.</p>
+              <p className="muted">Verify detected values against the drawing before copying them.</p>
+              {copyError && <p role="alert" className="error-text">Clipboard access failed. Select the value and copy it manually.</p>}
               <div className="value-grid">
                 {summary.extractedValues.map((entry) => {
-                  const firstOccurrence = entry.occurrences[0];
-                  const canCopy = entry.status === 'found' || entry.status === 'conflicting';
-                  const isCopied = copiedKey === entry.key;
+                  const signature = JSON.stringify(entry.candidates);
+                  const selection = valueSelections[entry.key];
+                  const selected = entry.status === 'found' ? entry.candidates[0]
+                    : selection?.signature === signature ? entry.candidates[selection.index] : undefined;
+                  const copyKey = `${entry.key}:${signature}:${selected?.value ?? ''}`;
+                  const isCopied = copiedKey === copyKey;
                   return (
                     <article className={`value-card value-${entry.status}`} key={entry.key}>
                       <div className="value-card-top">
@@ -368,57 +379,70 @@ export function FindingsPanel({
                           {entry.status === 'found' ? 'Found' : entry.status === 'derived' ? 'Estimated' : entry.status === 'conflicting' ? 'Conflicting' : 'Not found'}
                         </span>
                       </div>
-                      <p className="value-text">{entry.value || 'Not detected in extracted text'}</p>
-                      <div className="value-source">
-                        <span className="muted small" title={firstOccurrence ? `${firstOccurrence.fileName}, p. ${firstOccurrence.page}` : undefined}>
-                          {firstOccurrence
-                            ? `${firstOccurrence.fileName}, p. ${firstOccurrence.page}${entry.occurrences.length > 1 ? ` (+${entry.occurrences.length - 1})` : ''}`
-                            : 'No source match'}
-                        </span>
+                      {entry.candidates.length === 0 && <p className="value-text">{entry.value || 'Not detected in extracted text'}</p>}
+                      {entry.status === 'conflicting' && (
+                        <label className="field-label">
+                          Choose {entry.label.toLowerCase()} to copy
+                          <select value={selected && selection ? String(selection.index) : ''} onChange={(event) => {
+                            const index = event.target.value === '' ? -1 : Number(event.target.value);
+                            setValueSelections((current) => ({ ...current, [entry.key]: { signature, index } }));
+                          }}>
+                            <option value="">Select a value</option>
+                            {entry.candidates.map((candidate, index) => <option key={candidate.value} value={index}>{candidate.value}</option>)}
+                          </select>
+                        </label>
+                      )}
+                      {entry.candidates.map((candidate) => (
+                        <details key={candidate.value} open={entry.status === 'conflicting' || candidate.occurrences.length === 1}>
+                          <summary className="value-text">{candidate.value}</summary>
+                          {candidate.occurrences.map((source) => (
+                            <div className="value-source" key={JSON.stringify([source.fileId, source.revision, source.page])}>
+                              <span className="muted small">{source.snippet}</span>
+                              <button type="button" className="button ghost sm has-icon" onClick={() => onPreview(source.fileId, source.page)}>
+                                <IconEye width={14} height={14} /> {source.fileName}, p. {source.page}
+                              </button>
+                            </div>
+                          ))}
+                        </details>
+                      ))}
+                      {entry.candidates.length > 0 && (
                         <div className="action-row">
-                          {canCopy && (
-                            <button type="button" className={`button ghost sm copy-button ${isCopied ? 'is-copied' : ''}`} onClick={() => copyValue(entry.key, entry.value)}>
-                              <span className="icon-swap" aria-hidden="true">
-                                <IconCopy className="swap-out" width={14} height={14} />
-                                <IconCheck className="swap-in" width={14} height={14} />
-                              </span>
-                              <span>{isCopied ? 'Copied' : 'Copy'}</span>
-                            </button>
-                          )}
-                          {firstOccurrence && (
-                            <button type="button" className="button ghost sm has-icon" onClick={() => onPreview(firstOccurrence.fileId, firstOccurrence.page)}>
-                              <IconEye width={14} height={14} /> View sheet
-                            </button>
-                          )}
+                          <button type="button" className={`button ghost sm copy-button ${isCopied ? 'is-copied' : ''}`} disabled={!selected} onClick={() => selected && copyValue(copyKey, selected.value)}>
+                            <span className="icon-swap" aria-hidden="true">
+                              <IconCopy className="swap-out" width={14} height={14} />
+                              <IconCheck className="swap-in" width={14} height={14} />
+                            </span>
+                            <span>{isCopied ? 'Copied' : 'Copy'}</span>
+                          </button>
                         </div>
-                      </div>
+                      )}
                     </article>
                   );
                 })}
               </div>
             </section>
-          )}
+          )}</div>}
 
-          {tab === 'mapping' && hasMapping && (
+          {hasMapping && <div {...tabPanel('mapping')}>{tab === 'mapping' && (
             <section className="insights-section" aria-label="Document type preview">
               <h3>Document type preview</h3>
               <p className="muted">Suggested CivCheck document-type mapping from filenames and extracted text. Confirm manually in Document review.</p>
               <div className="assignment-grid">
-                {summary.assignments.filter((slot) => slot.assignedFiles.length > 0 || slot.requiredGroup === 'plan').map((slot) => (
+                {summary.assignments.filter((slot) => slot.assignedFiles.length > 0).map((slot) => (
                   <div className="assignment-row" key={slot.docType}>
                     <strong>{slot.docType}</strong>
-                    <span className={slot.assignedFiles.length ? 'assignment-files' : 'muted small'}>
-                      {slot.assignedFiles.length
-                        ? slot.assignedFiles.map((file) => file.fileName).join(', ')
-                        : 'No matching file detected'}
-                    </span>
+                    <ul className="assignment-files">
+                      {slot.assignedFiles.map((file) => (
+                        <li key={file.fileId}>{file.fileName} <span className="muted small">· {file.confidence === 'medium' ? 'Tentative. ' : ''}{file.reason}</span></li>
+                      ))}
+                    </ul>
                   </div>
                 ))}
               </div>
             </section>
-          )}
+          )}</div>}
 
-          {tab === 'imported' && hasChecklist && (
+          {hasChecklist && <div {...tabPanel('imported')}>{tab === 'imported' && (
             <section className="insights-section" aria-label="Imported CivCheck code checklist">
               <div className="finding-group-head">
                 <h3>Imported CivCheck checklist</h3>
@@ -479,7 +503,7 @@ export function FindingsPanel({
                 </div>
               )}
             </section>
-          )}
+          )}</div>}
 
           <div className="panel-footer">
             <p className="muted small">Continuing does not resolve findings. Unresolved items remain in your reference report.</p>

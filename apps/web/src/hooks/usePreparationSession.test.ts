@@ -37,6 +37,85 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('usePreparationSession', () => {
+  it('keeps a usable revision when a replacement fails and undoes the most recent removal', async () => {
+    const { result } = renderHook(() => usePreparationSession());
+    await act(async () => { await result.current.addFiles([pdf('A101 - Floor.pdf')]); });
+    const id = result.current.items[0].record.id;
+    act(() => result.current.rename(id, 'A101 - Accepted.pdf'));
+    const current = result.current.items[0];
+    vi.mocked(readPdf).mockRejectedValueOnce(new Error('Broken test PDF'));
+    await act(async () => { await result.current.replaceFile(id, pdf('Malformed.pdf')); });
+    expect(result.current.items[0]).toBe(current);
+    expect(result.current.error).toMatch(/previous revision/);
+    expect(result.current.notice).not.toMatch(/Replacement analyzed/);
+    act(() => result.current.remove(id));
+    expect(result.current.items).toEqual([]);
+    await act(async () => { await result.current.undoRemove(); });
+    expect(result.current.items[0]).toBe(current);
+  });
+
+  it('checks combined drawings and asks about a conflicting report filename', async () => {
+    const drawings = parsed();
+    drawings.pages = [
+      { ...drawings.pages[0], text: 'Existing Floor Plan' },
+      { ...drawings.pages[0], page: 2, text: 'Roof Plan' },
+    ];
+    vi.mocked(readPdf).mockResolvedValue(drawings);
+    const { result } = renderHook(() => usePreparationSession());
+    await act(async () => { await result.current.addFiles([pdf('Full Drawing Set.pdf'), pdf('Drawing Report.pdf')]); });
+    const [obvious, ambiguous] = result.current.items;
+    expect(obvious.record.kind).toBe('plan');
+    expect(result.current.summary.findings).toContainEqual(expect.objectContaining({ ruleId: 'plan-page-count', fileId: obvious.record.id }));
+    expect(ambiguous.record.typeReview).toBeTruthy();
+    expect(result.current.summary.findings).toContainEqual(expect.objectContaining({ ruleId: 'confirm-file-type', fileId: ambiguous.record.id }));
+    act(() => result.current.classify(ambiguous.record.id, 'plan'));
+    expect(result.current.items[1].record.typeReview).toBeUndefined();
+  });
+
+  it('retains an accepted name for the same sheet and reviews a replacement with no sheet number', async () => {
+    const { result } = renderHook(() => usePreparationSession());
+    await act(async () => { await result.current.addFiles([pdf('A101 - Existing Floor.pdf')]); });
+    const id = result.current.items[0].record.id;
+    act(() => result.current.rename(id, 'A101 - Floor Plan.pdf'));
+
+    await act(async () => { await result.current.replaceFile(id, pdf('A101 - Revised Floor.pdf')); });
+    expect(result.current.items[0].record).toMatchObject({ revision: 2, exportName: 'A101 - Floor Plan.pdf' });
+    expect(result.current.items[0].record.typeReview).toBeUndefined();
+
+    await act(async () => { await result.current.replaceFile(id, pdf('Revised Floor Plan.pdf')); });
+    expect(result.current.items[0].record).toMatchObject({ revision: 3, exportName: 'Revised Floor Plan.pdf' });
+    expect(result.current.items[0].record.typeReview).toMatch(/different sheet identifier/);
+  });
+
+  it('ignores replacement results that arrive after cancellation or reset', async () => {
+    const { result } = renderHook(() => usePreparationSession());
+    await act(async () => { await result.current.addFiles([pdf(), pdf('A102.pdf')]); });
+    const [original, second] = result.current.items;
+    const id = original.record.id;
+    act(() => result.current.remove(second.record.id));
+
+    const canceled = deferred<ReturnType<typeof parsed>>();
+    vi.mocked(readPdf).mockReturnValueOnce(canceled.promise);
+    let replacement!: Promise<void>;
+    act(() => { replacement = result.current.replaceFile(id, pdf('A101 - Revised.pdf')); });
+    expect(result.current.replacingId).toBe(id);
+    act(() => result.current.cancelReplacement());
+    await act(async () => { canceled.resolve(parsed()); await replacement; });
+    expect(result.current.items).toEqual([original]);
+    expect(result.current.notice).toMatch(/Replacement canceled/);
+
+    const late = deferred<ReturnType<typeof parsed>>();
+    vi.mocked(readPdf).mockReturnValueOnce(late.promise);
+    act(() => { replacement = result.current.replaceFile(id, pdf('A101 - Revised.pdf')); });
+    act(() => result.current.clear());
+    await act(async () => { await result.current.addFiles([pdf('A103.pdf')]); });
+    await act(async () => { late.resolve(parsed()); await replacement; });
+    expect(result.current.items.map(({ record }) => record.originalName)).toEqual(['A103.pdf']);
+    expect(result.current.removedName).toBeUndefined();
+    expect(result.current.replacingId).toBeNull();
+    expect(result.current.busy).toBe(false);
+  });
+
   it('adds sources, exposes analysis, and updates names and classifications without changing originals', async () => {
     const { result } = renderHook(() => usePreparationSession());
     const source = pdf();
@@ -173,7 +252,7 @@ describe('usePreparationSession', () => {
     expect(result.current.error).toContain('Replacement exceeds');
     expect(result.current.items[0].record.revision).toBe(1);
     await act(async () => { await result.current.replaceFile(id, pdf('A103.pdf')); });
-    expect(result.current.items[0]).toMatchObject({ demo: true, record: { id, revision: 2, originalName: 'A103.pdf', exportName: 'A103.pdf', status: 'complete' } });
+    expect(result.current.items[0]).toMatchObject({ demo: true, syntheticSample: false, record: { id, revision: 2, originalName: 'A103.pdf', exportName: 'A103.pdf', status: 'complete' } });
     expect(result.current.error).toBe('');
     expect(result.current.notice).toContain('Replacement analyzed');
   });
@@ -223,6 +302,7 @@ describe('usePreparationSession', () => {
       ]);
     });
     expect(result.current.items[0].record.kind).toBe('supporting');
+    expect(result.current.items[0].record.disposition).toBe('reference');
     expect(result.current.items[1].record.kind).toBe('supporting');
     act(() => { result.current.classify(result.current.items[1].record.id, 'plan'); });
     expect(result.current.items[1].record.kind).toBe('plan');
@@ -254,7 +334,7 @@ describe('usePreparationSession', () => {
     expect(result.current.items[0].record.kind).toBe('plan');
     expect(result.current.exporting).toBe(true);
     await act(async () => { exporting.resolve(new Uint8Array([4])); await download; });
-    expect(downloadBytes).toHaveBeenCalledWith(new Uint8Array([4]), 'HNL-prescreen-package.zip', 'application/zip');
+    expect(downloadBytes).toHaveBeenCalledWith(new Uint8Array([4]), 'HNL-preflight-test-only.zip', 'application/zip');
     expect(result.current.notice).toContain('Package downloaded');
     expect(result.current.busy).toBe(false);
   });

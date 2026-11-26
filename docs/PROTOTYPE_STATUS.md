@@ -1,7 +1,7 @@
 # Prototype status — S0
 
-**Updated:** 2026-11-25
-**State:** S0 with guided onboarding and redesigned preparation UI implemented and checked locally: TypeScript, 229 automated tests, production build, dependency audit, and the browser sample correction/export flow passed. Remaining verification limits are recorded below.
+**Updated:** 2026-11-26
+**State:** S0 includes the reliability and workflow improvements, a test-only CivCheck handoff checklist, and production-browser acceptance coverage. The timed preparer rehearsal, screen-reader acceptance, and pilot remain open.
 **Scope:** Test-only first useful slice, not the full MVP, M0–M6 completion, or P00–P22 sign-off.
 
 ## 1. Safety and claims
@@ -10,7 +10,7 @@
 - The React/Vite app runs on loopback in one browser tab/session; all project data is memory-only.
 - **Refresh or tab closure loses the entire workspace.** There is no autosave, persistence, vault, or recovery.
 - Downloads are unencrypted user-controlled copies; clearing the workspace does not delete originals or downloads.
-- Fixed demonstration rules come from the repository walkthrough; current external requirements are not independently verified.
+- Fixed demonstration rules come from the repository walkthrough and selected examples from DPP’s public plan-format checklist. Scope-specific requirements and current portal behavior still need review.
 - “Covered file checks complete” is not document completeness, compliance, submission readiness, a CivCheck pass, or permit approval.
 - The app creates no CivCheck ID, certificate, watermarked plans, or automated submission. Synthetic samples must never be submitted as a real project.
 
@@ -18,31 +18,33 @@
 
 | Area | Current capability and boundary |
 | --- | --- |
-| Onboarding | Coverage overview, guided-sample/test-PDF choice, set name and explicit memory-only/test-only acknowledgment; back navigation retains setup |
-| Workspace | Four local preparation steps; choose/drop test PDFs, rename the set without discarding files, classify Plan/Supporting document; reusable help and confirmed reset |
+| Starting point | Require a project name in **Workspace setup**. **Add plans** offers file and folder selection, drag-and-drop, and the guided sample. |
+| Workspace | Choose or drop test PDFs, confirm plan/supporting/reference roles, rename the set, reopen help, or reset with confirmation |
 | Samples | Generate three local PDFs: title sheet, bad-name/portrait floor plan, and three-page supporting form; generate a corrected plan replacement |
 | Analysis | PDF.js worker extracts page count, dimensions/rotation and text; unsupported/error states remain visible |
-| Preview | Page canvas, page navigation and extracted text; no evidence-region annotations or verified highlights |
-| Naming | Suggestion preview, accept and undo; original filename/bytes remain distinct from export name |
-| Changes | Replace a file or use the corrected sample; remove files; clear the workspace through confirmation |
-| Findings | Pure deterministic per-file/set checks, categories `fix`, `review`, `advisory`, `not-assessed`, and action/source hints |
+| Preview | Fit-to-page and zoom, page navigation, and extracted-text search |
+| Naming | Preview, validate, accept, and undo export names while preserving each original filename and PDF |
+| Changes | Parse a replacement before switching revisions, cancel it, or undo the most recent removal |
+| Findings | Deterministic file and set checks, explicit index coverage, and action and source hints |
 | Current state | SHA-256 source hashes and file revisions; guarded asynchronous results; replacement re-parses changed content and recalculates set findings |
-| Export | Local source-preserving ZIP with validated names/collisions, source hashes and revision references; reference reports kept separate |
+| Export | Copy or download the local checklist. Create an unchanged-byte ZIP with validated names, hashes, revisions, and distinct source and review-only PDFs. |
 
-Individual removal currently acts immediately; only workspace clearing has a confirmation prompt. Rename undo is not general undo or recoverable action history.
+The most recent removal can be undone in the current session. Reset requires confirmation and clears that undo. A replacement is parsed before it becomes the current revision.
 
 Covered demo checks include filename format/collisions, title filename, plan page count, dimensions/orientation, common plan size and text-layer availability. Title/index and FAR text cues are hints, not verified evidence or scope-specific value extraction. Supporting forms are excluded from plan-only formatting rules.
 
+Demo rule pack 0.4.0 reports partial drawing-index coverage, links findings to the indexed page, and distinguishes missing sheets from sheets that could not be matched. It uses explicit owner and building-area labels and lists conflicting values with their revision-linked sources. The handoff lists plan order, suggested document pages, and source pages for owner, address, and tax map key. Detected or manually selected review-only references appear separately from the source PDFs. [DPP plan-format checklist, revised August 2025](https://www4.honolulu.gov/docushare/dsweb/Get/Document-347535/building-permit-checklist.pdf)
+
 ## 3. Try the correction path
 
-1. Complete **Get started → Try the guided sample → Continue**, name the set and acknowledge the test/session limits, then **Start guided sample**. Confirm all three PDFs and their classification. The alternative **Use my test PDFs** opens an empty workspace.
+1. Name the project in **Workspace setup** and select **Continue to files**. Choose or drop approved test PDFs, select a folder, or try the guided sample. Check the file roles and resolve pending classification.
 2. For `A101 & Floor Plan.pdf`, select **Review filename**, inspect the proposal and **Accept name**; try **Undo rename**.
-3. Open **View PDF**, inspect the portrait page, and expand **Extracted text**. Review the file/set findings.
+3. Open **View PDF**, inspect the portrait page, and zoom or search for an entry in the extracted text. Review the file and set findings, including index coverage.
 4. Select **Use corrected sample PDF** (or **Replace** with a safe test PDF). Confirm the new revision and recalculated findings.
 5. Revisit manual reviews and not-assessed items. Fixing the sample's filename/orientation does not establish compliance.
-6. Open **Prepare for CivCheck**, download and inspect the ZIP. **How it works** opens help without clearing data. **Start a new preparation set** requires confirmation before clearing it.
+6. Open **Prepare for CivCheck**, review the open work, and copy or download the checklist. Download and inspect the ZIP. **How it works** opens help without clearing data. **Start a new preparation set** requires confirmation before clearing it.
 
-The app borrows familiar CivCheck terminology only for the downstream handoff. Its independent **Set up → Add plans → Fix & review → Prepare for CivCheck** flow is not a clone, live portal progress, or an official review. The guided checklist never marks manual review complete merely because formatting fixes disappear.
+The local workflow is **Workspace setup → Add plans → Fix & review → Prepare for CivCheck**. The guided checklist continues to show manual reviews after format fixes are resolved.
 
 This path is narrower than the original full demonstration: it has no scope questions, value/evidence confirmations, saved-state reload or backup restore.
 
@@ -51,6 +53,7 @@ This path is narrower than the original full demonstration: it has no scope ques
 ```text
 upload/plan/               unchanged plan PDFs under accepted names
 upload/supporting/         unchanged supporting PDFs under accepted names
+reference/source-pdfs/    unchanged review-only PDFs
 reference/guide.txt        manual handoff steps and limitations
 reference/findings.csv     findings, sources and revision references
 reference/manifest.json    hashes, original/export names, revisions, snapshot metadata
@@ -59,9 +62,9 @@ reference/readiness.pdf    preparation reference only, not a compliance report
 
 Export checks source byte counts/SHA-256 hashes, safe filenames/case-insensitive collisions, current file revisions and finding references. Its project-revision fingerprint identifies the export snapshot, not a persisted project counter or true history. CSV cells are escaped and guarded against formula injection.
 
-Unreadable/pending sources or unsafe names prevent export; unresolved preparation findings may still be exported with explicit incomplete/non-compliance disclaimers. The manifest always records `complianceAssessed: false` and `submissionReady: false`.
+Unreadable or pending sources, unresolved file roles, and unsafe or duplicate names prevent export. The preparer can explicitly omit an unreadable review-only PDF and review that omission in the reports. Other open findings remain in the test package. The manifest records `complianceAssessed: false` and `submissionReady: false`.
 
-The ZIP is an organizational convenience, not an assumed CivCheck ingestion format. Reference reports are **not upload candidates** or required forms. The guide describes a future human-controlled handoff of appropriate individual source PDFs, not permission to submit synthetic examples or a claim of current portal validation.
+Export pack 2.0.0 uses manifest schema 3. The manifest records roles, omitted references, page geometry, and test provenance. The snapshot fingerprint covers versioned source metadata, omissions, and findings. Full extracted page text stays in the application.
 
 ## 5. Architecture and tooling
 
@@ -79,20 +82,29 @@ The ZIP is an organizational convenience, not an assumed CivCheck ingestion form
 
 | Evidence | Status |
 | --- | --- |
-| Core unit checks | 169 tests passed: filenames, geometry, supporting/plan distinction, unresolved analysis, current revisions and CSV safety |
-| Export, generated-demo and deadline checks | 27 tests passed: source-preserving ZIP, hashes/stale references/collisions, fixture dimensions, cancellation/deadline settlement |
-| Onboarding, workspace, session and full-App regressions | 33 additional tests passed; 229 total. Covers validation, both entry paths, back/name preservation, guide progress, help retaining files, reset confirmation, late async work and repeated starts |
-| Typecheck/build and dependency audit | `corepack pnpm check` passed. Full `corepack pnpm audit` reports no known vulnerabilities after upgrading Vitest to 4.1.12; not a complete security review |
-| Browser sample flow and downloaded output | In-app Chromium: generated sample parsing, filename preview/accept (2 fixes to 1), corrected replacement (0 covered fixes, manual reviews remain), production PDF canvas/page navigation, and observed ZIP download event passed. ZIP structure/hash invariants also pass unit tests |
-| File chooser/drop and replacement uploads | Not end-to-end verified: the available browser backend cannot automate native file uploads. Generated PDFs exercise the same parser/add/replace paths, but this does not substitute for native chooser/drop testing |
-| Chrome/Edge, keyboard/screen reader, responsive layout | Desktop layout/PDF canvas and 390px mobile handoff visually checked; no horizontal overflow at the checked width. Escape closes the preview. Full Chrome/Edge, keyboard and screen-reader/WCAG acceptance not completed |
-| PDF/rule/export duration, peak memory and real-sample accuracy | Not benchmarked; the proposed 12-file/60-second target remains unproven |
+| Typecheck, unit, and component tests | TypeScript, the production build, and 252 Vitest tests passed, including required project naming and workspace reset. |
+| Production browser acceptance | Four Playwright acceptance tests passed in each of Chrome and Edge. They cover both entry paths, file and folder selection, drag-and-drop, replacement and undo, clipboard fallback, ZIP separation and byte verification, and malformed, scanned, and password-protected PDFs. |
+| Keyboard and responsive checks | The browser suite checks Help and evidence focus return after Escape, Findings tab keys, and handoff overflow at 390 px. Screen-reader and full WCAG acceptance remain open. |
+| App performance | The six post-change Edge runs met the 60-second analysis target for the 12-file synthetic fixture. Larger workloads, process memory, and real-sample accuracy remain open. |
+
+After the workflow changes, analysis took 3.46–7.26 seconds across three cold and three warm runs using the same Edge version, machine, and fixture. Fit-to-page preview took 0.44–1.02 seconds and ZIP download took 0.41–0.72 seconds. The longest observed main-thread task was 228 ms. These measurements cover app operations. The timed preparer rehearsal measures hands-on work separately.
+
+The baseline table below predates the workflow improvements. It ran on Windows 11 Pro with Edge `158.0.4370.33`, Intel Core i7-10510U, and 16 GiB RAM. The fixture has 12 files and 11,272 bytes with aggregate source hash `b3701874a011e5cfdaa471ac6887443021acedf030281125a5f486538c4baf39`. Each cold run used a fresh context followed by a warm run. Analysis time covers upload through final findings. Preview and ZIP timings are separate. The reported heap is a sampled renderer JS heap estimate.
+
+| Trial | Cache | Analysis | Preview | ZIP | Longest main-thread task | Reported heap |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | Cold | 4.01 s | 0.67 s | 0.50 s | 144 ms | 19.4 MiB |
+| 1 | Warm | 3.97 s | 0.61 s | 0.49 s | 114 ms | 23.3 MiB |
+| 2 | Cold | 4.21 s | 0.70 s | 0.67 s | 170 ms | 19.5 MiB |
+| 2 | Warm | 4.04 s | 0.77 s | 0.54 s | 125 ms | 23.4 MiB |
+| 3 | Cold | 4.87 s | 0.99 s | 0.72 s | 196 ms | 17.7 MiB |
+| 3 | Warm | 4.95 s | 0.70 s | 0.62 s | 159 ms | 23.3 MiB |
 
 Reduced preparation time and fewer CivCheck retries remain future pilot measurements against a baseline, not achieved S0 outcomes. No external research or real-CivCheck pass is asserted by this status update.
 
 ## 7. Deliberately absent
 
-No application server, OIDC, PostgreSQL, persistent storage, encrypted vault, autosave, backups/restore, true action/check history, evidence confirmations, verified value/answer bank, project/scope question graph, actual scope validation, advanced document/page assignment, automatic stamp-space checks, value extraction, rule publication, OCR, AI, browser extension, or portal automation is delivered by S0.
+Still open are an application server, OIDC, PostgreSQL, persistent storage, encrypted recovery, action/check history, a confirmed value and answer bank, scope-specific rules, validated document assignments, automatic stamp-space checks, rule publication, OCR, a browser extension, and portal automation.
 
 Classification is not a document assignment. Extracted text is not a confirmed value. A source hash and revision are not durable history. A reference ZIP is not a recovery backup. Manual/not-assessed findings cannot be dismissed into a compliance pass.
 
@@ -106,8 +118,8 @@ This intentionally defers encrypted storage before the first test-only demo beca
 
 ## 9. Next gates, not current capabilities
 
-1. Complete remaining native chooser/drop, malformed-PDF browser, full keyboard/screen-reader, and explicit Chrome/Edge checks; retain the passing automated and sample-flow regression evidence above.
-2. Measure extraction/rendering/rules/export performance and memory on a labeled workload; revise limits only with evidence.
+1. Complete screen-reader and full accessibility review. Run the [timed preparer rehearsal](PREFLIGHT_RELIABILITY_PLAN.md#7-timed-preparer-rehearsal) and record hands-on time and avoidable corrections.
+2. Measure extraction, rule evaluation, process memory, and export performance on larger labeled workloads before setting pilot limits.
 3. Verify current source rules and supported scope; obtain authorized samples and agreed accuracy/acceptance targets.
 4. Implement/review deployed identity, encrypted persistence, access/privacy controls, recovery/backups and required security/accessibility checks before real client data.
 5. Complete the retained scope/evidence/assignment/value/readiness and pilot acceptance work; extension/integrations remain separately permission-gated.

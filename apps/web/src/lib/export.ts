@@ -1,17 +1,20 @@
 import { DEMO_RULE_PACK, type DocumentRecord, type Finding } from '@hnl/contracts';
-import { csvCell, isSafeExportName } from '@hnl/core';
+import { csvCell } from '@hnl/core';
 import { strToU8, zipSync } from 'fflate';
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib';
+import { handoffFiles, packageBlockers, packagePath } from './handoffFiles';
 
 export interface SourceDocument {
   record: DocumentRecord;
   file: File;
+  syntheticSample?: boolean;
 }
 
-const DEMO_LABEL = 'SYNTHETIC-DEMO PACKAGE - NOT A COMPLIANCE DETERMINATION';
-const REAL_LABEL = 'LOCAL PREPARATION PACKAGE - NOT A COMPLIANCE DETERMINATION';
+const DEMO_LABEL = 'SYNTHETIC-DEMO PACKAGE - TEST-ONLY';
+const TEST_LABEL = 'LOCAL PREPARATION PACKAGE - TEST-ONLY';
 const DISCLAIMER = 'Preparation reference only. Unresolved fixes and manual reviews may remain. This package does not establish completeness, code compliance, permit approval, or readiness for submission.';
-const EXPORT_PACK = { id: 'hnl-preparation-export', version: '0.2.0' } as const;
+const EXPORT_PACK = { id: 'hnl-preparation-export', version: '2.0.0' } as const;
+const SCHEMA_VERSION = 3;
 
 export interface BuildPackageOptions {
   syntheticDemo?: boolean;
@@ -44,9 +47,6 @@ function validateRecord(record: DocumentRecord, file: File): void {
   if (!/^[a-f\d]{64}$/i.test(record.hash)) {
     throw new Error(`A real SHA-256 hash is required for ${record.originalName}.`);
   }
-  if (!isSafeExportName(record.exportName) || !/\.pdf$/i.test(record.exportName)) {
-    throw new Error(`Unsafe export filename: ${record.exportName}.`);
-  }
   if (!Array.isArray(record.pages) || record.pages.length === 0 || record.pages.some((page, index) => (
     page.page !== index + 1
     || !Number.isFinite(page.widthInches) || page.widthInches <= 0
@@ -56,10 +56,6 @@ function validateRecord(record: DocumentRecord, file: File): void {
   ))) {
     throw new Error(`Complete page analysis is required for ${record.originalName}.`);
   }
-}
-
-function uploadPath(record: DocumentRecord): string {
-  return `upload/${record.kind}/${record.exportName}`;
 }
 
 function findingFileName(finding: Finding, documents: DocumentRecord[]): string {
@@ -79,7 +75,7 @@ function findingsCsv(documents: DocumentRecord[], findings: Finding[], label: st
   return [columns, ...rows].map((row) => row.map((cell) => csvCell(cell)).join(',')).join('\r\n') + '\r\n';
 }
 
-function guide(documents: DocumentRecord[], findings: Finding[], label: string, syntheticDemo: boolean): string {
+function guide(documents: DocumentRecord[], findings: Finding[], label: string, omitted: DocumentRecord[]): string {
   const fixes = findings.filter((finding) => finding.category === 'fix').length;
   const manual = findings.filter((finding) => finding.category === 'review' || finding.category === 'not-assessed').length;
   return [
@@ -90,30 +86,26 @@ function guide(documents: DocumentRecord[], findings: Finding[], label: string, 
     'PACKAGE CONTENTS',
     'upload/plan/: unchanged source PDF bytes, with the selected export filenames.',
     'upload/supporting/: unchanged supporting PDF bytes, with the selected export filenames.',
+    'reference/source-pdfs/: original review-only PDFs for local reference.',
     'reference/: guide, findings CSV, manifest JSON, and readiness PDF. These are local reference reports, NOT upload candidates.',
-    syntheticDemo
-      ? 'The synthetic-demo label describes this demonstration package; it does not certify the provenance or accuracy of user-provided source PDFs.'
-      : 'All source bytes in upload/ are preserved unchanged from your local files.',
+    'The manifest distinguishes generated sample files from user-supplied test files. All sources are for local testing.',
     '',
-    'MANUAL CIVCHECK HANDOFF - confirm current instructions in the actual portal',
-    '1. Extract the ZIP locally. This is an organizational download, not a CivCheck ingestion format. Do not upload this ZIP or any reference/ report to CivCheck.',
-    '2. Confirm project eligibility, scope, details, current requirements, and outstanding fixes with the appropriate professional. Synthetic examples must never be submitted as a real project.',
-    '3. In project setup, upload the appropriate individual source PDFs from upload/. Inspect portal processing results. Resolve errors and replace revised files manually.',
-    '4. In the Files panel, manually verify each Plan/Other classification: plan files normally correspond to Plan and supporting files to Other. Local folder labels do not assign anything in CivCheck.',
-    '5. In Document review, use the actual project-specific required-document list. Accept/dismiss suggestions or select the correct files and page ranges manually. This app does not infer required documents or document-type assignments, and does not prove the set is complete.',
-    '6. In Intake review, verify actual evidence and manually apply/dismiss highlights, answer attestations, and resolve checks. A text match is not a verified highlight or proof of correctness. Title block, sheet index, and approval-stamp space still require visual/manual review.',
-    '7. In Plan review, complete the portal questions, evidence highlights, and any flagged follow-up. No code review or professional judgment is replaced by this report.',
-    '8. Follow the current official process for completion and any later HNL Build submission. This app creates no CivCheck ID, certificate of completion, or CivCheck-watermarked plans; it does not submit to either service.',
+    'CIVCHECK HANDOFF PRACTICE',
+    '1. Extract the ZIP locally. Keep the ZIP, test PDFs, and reference reports out of CivCheck and HNL Build.',
+    '2. Rehearse file order and Plan/Other classification using the individual PDFs in the test set.',
+    '3. Use the on-screen checklist to verify suggested document types, page ranges, and title-block evidence.',
+    '4. Review unresolved items before ending the exercise. This app creates no CivCheck ID, certificate of completion, or CivCheck-watermarked plans.',
     '',
     'REFERENCE LIMITATIONS',
     `Demo rule pack: ${DEMO_RULE_PACK.id} ${DEMO_RULE_PACK.version}.`,
     `Authority: ${DEMO_RULE_PACK.authority}`,
     `Basis: ${DEMO_RULE_PACK.source}`,
     'No external network or app persistence is used by this export. Keep downloaded files secure.',
-    'The PDF uses a restricted display alphabet and may abbreviate very long text; manifest JSON and findings CSV retain the supplied text.',
+    'The PDF uses a restricted display alphabet. The manifest and CSV retain finding text. Full extracted page text stays in the browser workspace.',
     '',
     'SOURCE FILE MAP (original -> exported path; no portal assignments implied)',
-    ...documents.map((record) => `${JSON.stringify(record.originalName)} -> ${JSON.stringify(uploadPath(record))}; revision ${record.revision}; SHA-256 ${record.hash.toLowerCase()}`),
+    ...documents.map((record) => `${JSON.stringify(record.originalName)} -> ${JSON.stringify(packagePath(record))}; revision ${record.revision}; SHA-256 ${record.hash.toLowerCase()}`),
+    ...omitted.map((record) => `Omitted unreadable reference: ${JSON.stringify(record.originalName)}; revision ${record.revision}.`),
     '',
   ].join('\n');
 }
@@ -211,13 +203,17 @@ async function readinessReport(
   paragraph(`Project revision fingerprint (not a persisted counter): ${projectRevision}`);
   paragraph(`Demo rule pack: ${DEMO_RULE_PACK.id} ${DEMO_RULE_PACK.version}; export pack: ${EXPORT_PACK.version}.`);
   paragraph(DEMO_RULE_PACK.authority);
-  paragraph('Display note: unsupported Unicode is replaced with ?, controls with spaces, and long fields may be abbreviated. Full original text remains in manifest.json and findings.csv.');
-  paragraph(`Sources: ${documents.length}; findings: ${findings.length}; fix: ${findings.filter((item) => item.category === 'fix').length}; manual review/not assessed: ${findings.filter((item) => item.category === 'review' || item.category === 'not-assessed').length}.`);
-  paragraph('No certificate, CivCheck ID, watermarked plans, verified assignments, reliable stamp-space check, or submission is produced. See guide.txt for manual portal steps.');
+  paragraph('Display note: unsupported Unicode is replaced with ?, controls with spaces, and long fields may be abbreviated. See manifest.json and findings.csv for finding text.');
+  const { included, omitted } = handoffFiles(documents);
+  paragraph(`Packaged PDFs: ${included.length}; omitted references: ${omitted.length}; findings: ${findings.length}; fix: ${findings.filter((item) => item.category === 'fix').length}; manual review/not assessed: ${findings.filter((item) => item.category === 'review' || item.category === 'not-assessed').length}.`);
+  paragraph('Use guide.txt to rehearse preparing individual files and verifying evidence. Keep this test set out of CivCheck and HNL Build.');
   paragraph('Source PDFs - unchanged bytes; not verified as submission-ready', true);
-  for (const record of documents) {
-    paragraph(`${uploadPath(record)} | original: ${record.originalName} | revision: ${record.revision} | pages: ${record.pages.length} | bytes: ${record.bytes}`);
+  for (const record of included) {
+    paragraph(`${packagePath(record)} | original: ${record.originalName} | revision: ${record.revision} | pages: ${record.pages.length} | bytes: ${record.bytes}`);
     paragraph(`SHA-256: ${record.hash.toLowerCase()}`);
+  }
+  for (const record of omitted) {
+    paragraph(`Omitted unreadable reference: ${record.originalName} | revision: ${record.revision}`);
   }
   paragraph('Findings - unresolved unless addressed outside this report', true);
   if (findings.length === 0) paragraph('No findings were supplied. This is not a determination of compliance or completeness.');
@@ -246,23 +242,25 @@ export async function buildPackage(
   findings: Finding[],
   options?: BuildPackageOptions,
 ): Promise<Uint8Array> {
-  const syntheticDemo = options?.syntheticDemo ?? true;
-  const label = syntheticDemo ? DEMO_LABEL : REAL_LABEL;
   if (documents.length === 0) throw new Error('At least one source document is required.');
   // Snapshot before awaiting hash reads so UI changes cannot mix two revisions.
-  const sources = documents.map(({ record, file }) => ({ record: structuredClone(record), file }));
+  const snapshot = documents.map(({ record, file, syntheticSample }) => ({
+    record: structuredClone(record), file, syntheticSample: syntheticSample ?? options?.syntheticDemo ?? true,
+  }));
   const snapshotFindings = structuredClone(findings);
-  const names = new Set<string>();
-  const ids = new Set<string>();
-  for (const { record, file } of sources) {
-    validateRecord(record, file);
-    const key = record.exportName.toLowerCase();
-    if (names.has(key)) throw new Error(`Duplicate export filename (case-insensitive): ${record.exportName}.`);
-    if (ids.has(record.id)) throw new Error(`Duplicate source document ID: ${record.id}.`);
-    names.add(key);
-    ids.add(record.id);
+  const records = snapshot.map(({ record }) => record);
+  const [blocker] = packageBlockers(records);
+  if (blocker) throw new Error(blocker);
+  const byId = new Map<string, typeof snapshot[number]>();
+  for (const source of snapshot) {
+    const id = source.record.id;
+    if (byId.has(id)) throw new Error(`Duplicate source document ID: ${id}.`);
+    byId.set(id, source);
   }
-  const records = sources.map(({ record }) => record);
+  const { included, omitted } = handoffFiles(records);
+  const sources = included.map((record) => byId.get(record.id)!);
+  const syntheticDemo = sources.some((source) => source.syntheticSample);
+  const label = syntheticDemo ? DEMO_LABEL : TEST_LABEL;
   for (const finding of snapshotFindings) {
     if (!finding.fileId) continue;
     const record = records.find((item) => item.id === finding.fileId);
@@ -275,27 +273,46 @@ export async function buildPackage(
   }
   const entries: Record<string, Uint8Array> = Object.create(null) as Record<string, Uint8Array>;
   for (const { record, file } of sources) {
+    validateRecord(record, file);
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (bytes.byteLength !== record.bytes || await sha256(bytes) !== record.hash.toLowerCase()) {
       throw new Error(`Source SHA-256 hash or bytes no longer match: ${record.originalName}. Reanalyze the file.`);
     }
-    entries[uploadPath(record)] = bytes;
+    entries[packagePath(record)] = bytes;
   }
   const exportedAt = new Date().toISOString();
-  // A content-derived snapshot ID is honest about this stateless API: it is not
-  // an invented monotonic project revision or evidence of persisted history.
+  const sourceMetadata = sources.map(({ record, syntheticSample }) => ({
+    id: record.id,
+    revision: record.revision,
+    originalName: record.originalName,
+    exportName: record.exportName,
+    kind: record.kind,
+    disposition: record.disposition ?? 'source',
+    bytes: record.bytes,
+    hash: record.hash.toLowerCase(),
+    hashAlgorithm: 'SHA-256',
+    path: packagePath(record),
+    provenance: syntheticSample ? 'synthetic-sample' : 'user-supplied-test',
+    pages: record.pages.map(({ page, widthInches, heightInches, rotation }) => ({ page, widthInches, heightInches, rotation })),
+    sourceBytesPreserved: true,
+  }));
+  const omittedReferences = omitted.map(({ id, originalName, revision }) => ({ id, originalName, revision, reason: 'Unreadable reference omitted by the preparer.' }));
+  // Timestamps and the internal full-text layer do not identify a different export snapshot.
   const projectRevision = await sha256(strToU8(JSON.stringify({
-    projectName, rulePack: DEMO_RULE_PACK, exportPack: EXPORT_PACK, documents: records, findings: snapshotFindings,
+    schemaVersion: SCHEMA_VERSION, projectName, rulePack: DEMO_RULE_PACK, exportPack: EXPORT_PACK,
+    documents: sourceMetadata, omittedReferences, findings: snapshotFindings,
   })));
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
     packageLabel: label,
+    testOnly: true,
+    omittedReferences,
     syntheticDemo,
     disclaimer: DISCLAIMER,
     exportedAt,
     projectName,
     projectRevision,
-    projectRevisionKind: 'sha256-of-project-name-packs-document-records-and-findings',
+    projectRevisionKind: 'sha256-of-versioned-source-metadata-and-findings',
     applicationPersistence: false,
     rulePack: DEMO_RULE_PACK,
     exportPack: EXPORT_PACK,
@@ -307,20 +324,20 @@ export async function buildPackage(
       review: snapshotFindings.filter((item) => item.category === 'review').length,
       notAssessed: snapshotFindings.filter((item) => item.category === 'not-assessed').length,
     },
-    documents: sources.map(({ record, file }) => ({
-      ...record,
-      hash: record.hash.toLowerCase(),
-      hashAlgorithm: 'SHA-256',
-      path: uploadPath(record),
-      sourceBytesPreserved: true,
-      sourceLastModified: Number.isFinite(file.lastModified) && Math.abs(file.lastModified) <= 8.64e15
-        ? new Date(file.lastModified).toISOString() : null,
-    })),
+    documents: sourceMetadata.map((metadata, index) => {
+      const { lastModified } = sources[index].file;
+      return {
+        ...metadata,
+        sourceLastModified: Number.isFinite(lastModified) && Math.abs(lastModified) <= 8.64e15
+          ? new Date(lastModified).toISOString() : null,
+      };
+    }),
     findings: snapshotFindings,
-    referenceFiles: ['reference/guide.txt', 'reference/findings.csv', 'reference/manifest.json', 'reference/readiness.pdf'],
+    referenceFiles: ['reference/guide.txt', 'reference/findings.csv', 'reference/manifest.json', 'reference/readiness.pdf',
+      ...sourceMetadata.filter(({ disposition }) => disposition === 'reference').map(({ path }) => path)],
     referenceFilesAreUploadCandidates: false,
   };
-  entries['reference/guide.txt'] = strToU8(guide(records, snapshotFindings, label, syntheticDemo));
+  entries['reference/guide.txt'] = strToU8(guide(included, snapshotFindings, label, omitted));
   entries['reference/findings.csv'] = strToU8(findingsCsv(records, snapshotFindings, label));
   entries['reference/manifest.json'] = strToU8(JSON.stringify(manifest, null, 2));
   entries['reference/readiness.pdf'] = await readinessReport(projectName, records, snapshotFindings, exportedAt, projectRevision, label, syntheticDemo);

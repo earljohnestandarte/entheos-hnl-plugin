@@ -1,13 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { suggestFilename } from '@hnl/core';
 import type { CheckSummary, DocumentRecord, FileKind } from '@hnl/contracts';
 import { IconEye, IconReplace, IconTrash, SheetThumb } from './Icons';
+import { exportNameIssue } from '../lib/exportNames';
+import { handoffFiles } from '../lib/handoffFiles';
 
 interface FileItem { record: DocumentRecord; demo: boolean }
 interface Props {
-  items: FileItem[]; summary: CheckSummary; busy: boolean; exporting: boolean; guided: boolean; highlightedId: string | null;
+  items: FileItem[]; summary: CheckSummary; busy: boolean; exporting: boolean; highlightedId: string | null;
+  onLoadSample: () => void;
   onAdd: (files: File[]) => void; onReplace: (id: string, file: File) => void;
-  onRename: (id: string, name: string) => void; onClassify: (id: string, kind: FileKind) => void;
+  onRename: (id: string, name: string) => void; onClassify: (id: string, kind: FileKind | 'reference') => void;
+  onOmitReference: (id: string) => void;
+  replacingId?: string | null;
+  removedName?: string;
+  onCancelReplacement: () => void;
+  onUndoRemove: () => void;
   onPreview: (id: string) => void; onRemove: (id: string) => void; onCorrectDemo: (id: string) => void; onContinue: () => void;
 }
 const sizeLabel = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
@@ -41,9 +49,13 @@ async function collectDroppedFiles(dataTransfer: DataTransfer): Promise<File[]> 
   return nested.flat();
 }
 
-function FilenameEditor({ record, busy, onRename }: { record: DocumentRecord; busy: boolean; onRename: (name: string) => void }) {
+function FilenameEditor({ record, records, busy, onRename }: {
+  record: DocumentRecord; records: readonly DocumentRecord[]; busy: boolean; onRename: (name: string) => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(record.exportName);
+  const errorId = useId();
+  const issue = exportNameIssue(name.trim(), records, record.id);
   if (!editing) {
     return (
       <div className="filename-actions">
@@ -59,22 +71,30 @@ function FilenameEditor({ record, busy, onRename }: { record: DocumentRecord; bu
     );
   }
   return (
-    <form className="filename-editor" onSubmit={(event) => { event.preventDefault(); if (name.trim()) { onRename(name.trim()); setEditing(false); } }}>
+    <form className="filename-editor" onSubmit={(event) => {
+      event.preventDefault();
+      if (!busy && !issue) { onRename(name.trim()); setEditing(false); }
+    }}>
       <label className="field-label">
         Proposed export name
-        <input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} autoFocus disabled={busy} />
+        <input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} autoFocus disabled={busy}
+          aria-invalid={!!issue} aria-describedby={issue ? errorId : undefined} />
       </label>
       <p className="field-hint">Current: {record.exportName}. Confirm the sheet number; only the exported filename changes.</p>
+      {issue && <p className="error-text" id={errorId} role="status">{issue}</p>}
       <div className="action-row">
         <button type="button" className="button secondary sm" onClick={() => setEditing(false)}>Cancel</button>
-        <button type="submit" className="button primary sm" disabled={busy || !name.trim()}>Accept name</button>
+        <button type="submit" className="button primary sm" disabled={busy || !!issue}>Accept name</button>
       </div>
     </form>
   );
 }
 
 export function FilesPanel(props: Props) {
-  const { items, summary, busy, exporting, guided, highlightedId } = props;
+  const { items, summary, busy, exporting, highlightedId } = props;
+  const hasFiles = items.length > 0;
+  const guided = items.some((item) => item.demo);
+  const nameRecords = handoffFiles(items.map((item) => item.record)).included;
   const picker = useRef<HTMLInputElement>(null);
   const folderPicker = useRef<HTMLInputElement>(null);
   const replacement = useRef<HTMLInputElement>(null);
@@ -122,12 +142,12 @@ export function FilesPanel(props: Props) {
       )}
 
       <section className="panel surface-card">
-        <div className="panel-heading">
+        {hasFiles && <div className="panel-heading">
           <div>
             <h2>Drawing &amp; document schedule</h2>
           </div>
           <span className="panel-meta">{items.length} {items.length === 1 ? 'file' : 'files'}</span>
-        </div>
+        </div>}
 
         <div
           className={`drop-zone ${dragging ? 'is-dragging' : ''}`}
@@ -138,17 +158,18 @@ export function FilesPanel(props: Props) {
             setDragging(false);
             if (busy) return;
             const hasDirectory = Array.from(event.dataTransfer.items ?? []).some((item) => item.webkitGetAsEntry?.()?.isDirectory);
-            void collectDroppedFiles(event.dataTransfer).then((files) => addFilteredFromBatch(files, hasDirectory));
+            void collectDroppedFiles(event.dataTransfer).then((files) => {
+              if (picker.current) addFilteredFromBatch(files, hasDirectory);
+            });
           }}
         >
           <div className="drop-zone-lead">
-            <div>
-              <h3>{items.length ? 'Add PDFs or a project folder' : 'Add your project PDFs or folder'}</h3>
-              <p>PDFs only, up to 20 files, 25 MB per file (100 MB total). Originals remain untouched.</p>
-            </div>
+            {hasFiles ? <h3>Add test PDFs or a folder</h3> : <h2>Drop test PDFs or a folder here</h2>}
+            <p>Use synthetic or approved, de-identified PDFs for local testing. Refreshing clears the set.</p>
+            <p>Up to 20 files, 25 MB per file (100 MB total).</p>
           </div>
           <div className="drop-zone-actions">
-            <button type="button" className="button secondary" disabled={busy} onClick={() => picker.current?.click()}>
+            <button type="button" className={hasFiles ? 'button secondary' : 'button primary'} disabled={busy} onClick={() => picker.current?.click()}>
               Choose PDF files
             </button>
             <button type="button" className="button secondary" disabled={busy} onClick={() => folderPicker.current?.click()}>
@@ -157,35 +178,36 @@ export function FilesPanel(props: Props) {
           </div>
         </div>
 
-        <input hidden type="file" ref={picker} multiple accept=".pdf,application/pdf" aria-label="Add project PDFs" onChange={(event) => { addFilteredFromBatch(Array.from(event.target.files ?? []), false); event.target.value = ''; }} />
-        <input hidden type="file" ref={folderPicker} multiple aria-label="Add project folder" onChange={(event) => { addFilteredFromBatch(Array.from(event.target.files ?? []), true); event.target.value = ''; }} />
+        <input hidden type="file" ref={picker} multiple accept=".pdf,application/pdf" aria-label="Add test PDFs" onChange={(event) => { addFilteredFromBatch(Array.from(event.target.files ?? []), false); event.target.value = ''; }} />
+        <input hidden type="file" ref={folderPicker} multiple aria-label="Add test folder" onChange={(event) => { addFilteredFromBatch(Array.from(event.target.files ?? []), true); event.target.value = ''; }} />
         <input hidden type="file" ref={replacement} accept=".pdf,application/pdf" aria-label="Replacement PDF" onChange={(event) => { const file = event.target.files?.[0]; if (file && replaceId.current) props.onReplace(replaceId.current, file); event.target.value = ''; }} />
 
         {skippedNotice && <p className="field-hint" role="status">{skippedNotice}</p>}
-        <p className="classification-hint">
-          <strong>Plan</strong> is a drawing sheet. <strong>Supporting document</strong> covers multi-page forms, checklists, and reports.
-        </p>
-
-        {!items.length && (
-          <div className="empty-state">
-            <h3>No project PDFs added yet</h3>
-            <p>Add permit plan sheets or an exported project folder to inspect dimensions, filenames, and extracted project values.</p>
-            <div className="action-row">
-              <button type="button" className="button primary" disabled={busy} onClick={() => picker.current?.click()}>
-                Add project PDFs
-              </button>
-            </div>
+        {props.removedName && <div className="notice">
+          <span>Removed {props.removedName}.</span>{' '}
+          <button type="button" className="button ghost sm" disabled={busy} onClick={props.onUndoRemove}>Undo remove</button>
+        </div>}
+        {hasFiles ? (
+          <p className="classification-hint">
+            <strong>Plan</strong> is a drawing sheet. <strong>Supporting document</strong> covers multi-page forms, checklists, and reports.
+          </p>
+        ) : (
+          <div className="sample-entry">
+            <button type="button" className="button ghost" disabled={busy} onClick={props.onLoadSample}>
+              Try the guided sample
+            </button>
+            {busy && <span role="status">Preparing files…</span>}
           </div>
         )}
 
-        <div className="file-list">
+        {hasFiles && <div className="file-list">
           {items.map(({ record, demo }, idx) => {
             const count = summary.findings.filter((finding) => finding.fileId === record.id && finding.category === 'fix').length;
             const first = record.pages[0];
             const isRenamed = record.exportName !== record.originalName;
             const statusTone = record.status === 'analyzing'
               ? 'badge-info'
-              : record.status !== 'complete' || count > 0
+              : record.status !== 'complete' || count > 0 || record.typeReview
                 ? 'badge-warning'
                 : 'badge-green';
             return (
@@ -215,22 +237,42 @@ export function FilesPanel(props: Props) {
                     </p>
                   </div>
                   <span className={`pill-badge ${statusTone}`}>
-                    {record.status === 'analyzing' ? 'Processing' : record.status !== 'complete' ? 'Needs attention' : count ? `${count} ${count === 1 ? 'fix' : 'fixes'}` : 'Checked'}
+                    {record.status === 'analyzing' ? 'Processing' : record.status !== 'complete' ? 'Needs attention'
+                      : record.typeReview ? 'Confirm type' : count ? `${count} ${count === 1 ? 'fix' : 'fixes'}`
+                      : record.disposition === 'reference' ? 'Review only' : 'Checked'}
                   </span>
                 </div>
 
                 {record.error && <p className="error-text">{record.error}</p>}
+                {record.typeReview && <p className="field-hint">{record.typeReview}</p>}
+                {!record.typeReview && record.kindReason && <p className="field-hint">{record.kindReason}</p>}
+                {record.omitFromPackage && <p className="field-hint">This review reference will be listed as omitted in the ZIP.</p>}
+                {props.replacingId === record.id && <div className="notice">
+                  <span role="status">Checking replacement… The current revision is still available.</span>{' '}
+                  <button type="button" className="button ghost sm" onClick={props.onCancelReplacement}>Cancel replacement</button>
+                </div>}
 
                 <div className="file-controls">
                   <div className="file-controls-left">
                     <label className="inline-label">
                       Classification
-                      <select aria-label={`File type for ${record.originalName}`} disabled={busy} value={record.kind} onChange={(event) => props.onClassify(record.id, event.target.value as FileKind)}>
+                      <select aria-label={`File type for ${record.originalName}`} disabled={busy}
+                        value={record.typeReview ? '' : record.disposition === 'reference' ? 'reference' : record.kind}
+                        onChange={(event) => props.onClassify(record.id, event.target.value as FileKind | 'reference')}>
+                        {record.typeReview && <option value="" disabled>Confirm file type</option>}
                         <option value="plan">Plan</option>
                         <option value="supporting">Supporting document</option>
+                        <option value="reference">Review-only reference</option>
                       </select>
                     </label>
-                    <FilenameEditor key={`${record.revision}-${record.exportName}`} record={record} busy={busy} onRename={(name) => props.onRename(record.id, name)} />
+                    {record.disposition === 'reference' && (record.status === 'unsupported' || record.status === 'error') && (
+                      <button type="button" className="button ghost sm" disabled={busy} onClick={() => props.onOmitReference(record.id)}>
+                        {record.omitFromPackage ? 'Include in ZIP' : 'Omit from ZIP'}
+                      </button>
+                    )}
+                    <FilenameEditor key={`${record.revision}-${record.exportName}`} record={record}
+                      records={nameRecords}
+                      busy={busy} onRename={(name) => props.onRename(record.id, name)} />
                     {demo && /^A101/.test(record.originalName) && record.pages.some((page) => page.heightInches > page.widthInches) && (
                       <button type="button" className="button sample-action" disabled={busy} onClick={() => props.onCorrectDemo(record.id)}>
                         Use corrected sample PDF
@@ -252,14 +294,14 @@ export function FilesPanel(props: Props) {
               </article>
             );
           })}
-        </div>
+        </div>}
 
-        <div className="panel-footer">
+        {hasFiles && <div className="panel-footer">
           <p className="muted small">Changes automatically recalculate file and set-level checks.</p>
-          <button type="button" className="button primary" disabled={!items.length || busy} onClick={props.onContinue}>
+          <button type="button" className="button primary" disabled={busy} onClick={props.onContinue}>
             Fix &amp; review
           </button>
-        </div>
+        </div>}
       </section>
     </>
   );

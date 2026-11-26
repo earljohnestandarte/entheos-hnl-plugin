@@ -25,6 +25,78 @@ function doc(overrides: Partial<DocumentRecord> = {}): DocumentRecord {
 }
 
 describe('real-document extraction and analysis', () => {
+  it('reads through discipline headings and distinguishes a missing sheet from an unmatched sheet', () => {
+    const title = doc();
+    title.pages[0].text = 'Title Sheet\nSheet Index\n000 Title Sheet\nStructural\nSheet No. Description\nS101 Foundation Plan\nGeneral Notes';
+    const complete = analyzeDocuments([title]);
+    expect(complete.sheetIndexCoverage).toBe('compared');
+    expect(complete.findings).toContainEqual(expect.objectContaining({ ruleId: 'sheet-index-missing-files', page: 1 }));
+    const unknown = doc({ id: 'unknown', exportName: 'Foundation Drawing.pdf' });
+    const partial = analyzeDocuments([title, unknown]);
+    expect(partial.sheetIndexCoverage).toBe('partial');
+    expect(partial.findings).toContainEqual(expect.objectContaining({ ruleId: 'sheet-index-unmatched-files', page: 1 }));
+    expect(partial.findings.find((finding) => finding.ruleId === 'sheet-index-missing-files')).toBeUndefined();
+  });
+
+  it('flags duplicate sheet identifiers and withholds an extra-sheet conclusion from a partial index', () => {
+    const title = doc();
+    title.pages[0].text = 'Sheet index\n000 Title Sheet\nA101 Floor Plan\nUNRECOGNIZED ROW';
+    const floor = doc({ id: 'floor', exportName: 'A101 Floor Plan.pdf' });
+    const duplicate = doc({ id: 'duplicate', exportName: 'A101 Floor Plan Revision.pdf' });
+    const other = doc({ id: 'other', exportName: 'A102 Roof Plan.pdf' });
+    const summary = analyzeDocuments([title, floor, duplicate, other]);
+    expect(summary.sheetIndexCoverage).toBe('partial');
+    expect(summary.findings).toContainEqual(expect.objectContaining({ ruleId: 'duplicate-sheet-id' }));
+    expect(summary.findings.find((finding) => finding.ruleId === 'sheet-index-extra-files')).toBeUndefined();
+  });
+
+  it('uses explicit owner and building-area labels and links each distinct value to the source revision', () => {
+    const source = doc({ revision: 3 });
+    source.pages[0].text = [
+      'Consultant(s)', 'Example Design Studio', 'Owner: Example Owner A | TMK: 1-2-003:004',
+      'Max. allowable lot coverage area: 3000 sq. ft.', 'Building area: 1900 sq. ft.',
+      'Owner: Example Owner B',
+    ].join('\n');
+    const values = extractProjectValues([source]);
+    expect(values.find((entry) => entry.key === 'owner')).toMatchObject({
+      status: 'conflicting', occurrences: [
+        { raw: 'Example Owner A', revision: 3, page: 1 },
+        { raw: 'Example Owner B', revision: 3, page: 1 },
+      ],
+    });
+    expect(values.find((entry) => entry.key === 'buildingArea')?.value).toBe('1900 sq. ft.');
+  });
+
+  it('leaves owner and building area missing when only consultant and allowable coverage are printed', () => {
+    const source = doc();
+    source.pages[0].text = 'Consultant(s)\nExample Design Studio\nOwner:\nProject address: Example Lane\nMax. allowable lot coverage area: 3000 sq. ft.';
+    const values = extractProjectValues([source]);
+    expect(values.filter((entry) => ['owner', 'buildingArea'].includes(entry.key)).map((entry) => entry.status)).toEqual(['missing', 'missing']);
+  });
+
+  it('compares a title-only index independently of uploaded filenames and links the correct page', () => {
+    const title = doc({ revision: 4 });
+    title.pages.push({
+      ...title.pages[0], page: 2,
+      text: 'Sheet index\n000 Title Sheet\nA101 Floor Plan\nC104 Civil Plan\nH101 Mechanical Plan\nR301 Roof Plan\nGeneral Notes\nR302 Building code reference',
+    });
+    const finding = analyzeDocuments([title]).findings.find((entry) => entry.ruleId === 'sheet-index-missing-files');
+    expect(finding).toMatchObject({ page: 2, revision: 4 });
+    expect(finding?.detail).toContain('A101, C104, H101, R301');
+    expect(finding?.detail).not.toContain('R302');
+  });
+
+  it('excludes unreadable files and gives an explicit floor plan title precedence over a sheet number', () => {
+    const unreadable = doc({ id: 'unreadable', exportName: 'A101 Floor Plan.pdf', status: 'error', pages: [] });
+    const readable = doc({ id: 'readable', exportName: 'A101 Floor Plan.pdf' });
+    readable.pages[0].text = 'Existing floor plan';
+    const matches = suggestDocumentAssignments([unreadable, readable]);
+    expect(matches.find((entry) => entry.docType === 'Demolition plan')?.assignedFiles).toEqual([]);
+    expect(matches.find((entry) => entry.docType === 'Floor plans')?.assignedFiles).toEqual([
+      expect.objectContaining({ fileId: 'readable', pages: [1] }),
+    ]);
+  });
+
   it('extracts Honolulu permit values and computes estimated FAR when explicit FAR is absent', () => {
     const title = doc({
       id: '000',
@@ -55,8 +127,7 @@ describe('real-document extraction and analysis', () => {
         text: [
           'A001 General Informations : Plotted on 11/9/26 at 9:32 AM by Mia Labartine.',
           'owner information',
-          'consultant(s)',
-          'Arthur & Laurie Sickels',
+          'Owner: Arthur & Laurie Sickels',
           '2407 East Manoa Road, Honolulu, HI 96822',
           '- Relocation/Renovation of Existing Kitchen',
           '- Garage w/ Storage Addition',
@@ -93,7 +164,7 @@ describe('real-document extraction and analysis', () => {
     expect(byKey.get('floodZone')).toMatchObject({ status: 'found', value: 'X-beyond 500 year floodplain' });
     expect(byKey.get('lotArea')).toMatchObject({ status: 'found', value: '7,650 sq. ft.' });
     expect(byKey.get('floorArea')).toMatchObject({ status: 'found', value: '2,470 sq. ft.' });
-    expect(byKey.get('buildingArea')).toMatchObject({ status: 'found', value: '3,825.00 sq. ft.' });
+    expect(byKey.get('buildingArea')).toMatchObject({ status: 'missing' });
     expect(byKey.get('parkingSpaces')).toMatchObject({ status: 'found', value: '3 parking space' });
     expect(byKey.get('civCheckId')).toMatchObject({ status: 'found', value: 'CIV-RHHZMD3-26' });
     expect(byKey.get('architectLicense')).toMatchObject({ status: 'found', value: 'License No. 6436 (exp. 4/30/2028)' });

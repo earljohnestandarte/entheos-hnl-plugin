@@ -3,30 +3,33 @@ import { IconCheck } from './Icons';
 export type WorkspaceStep = 'setup' | 'files' | 'findings' | 'handoff';
 
 const STEPS = [
-  { id: 'setup', label: 'Set up', detail: 'Preparation set' },
+  { id: 'setup', label: 'Workspace setup', detail: 'Project name' },
   { id: 'files', label: 'Add plans', detail: 'Files & types' },
   { id: 'findings', label: 'Fix & review', detail: 'Checks & values' },
   { id: 'handoff', label: 'Prepare for CivCheck', detail: 'Export package' },
 ] as const;
 
-export function StepNavigation({ current, hasFiles, fixCount, onNavigate }: {
-  current: WorkspaceStep; hasFiles: boolean; fixCount: number; onNavigate: (step: WorkspaceStep) => void;
+export function StepNavigation({ current, hasWorkspace, hasFiles, fixCount, classificationPendingCount, onNavigate }: {
+  current: WorkspaceStep; hasWorkspace: boolean; hasFiles: boolean; fixCount: number;
+  classificationPendingCount: number; onNavigate: (step: WorkspaceStep) => void;
 }) {
-  const currentIndex = STEPS.findIndex((step) => step.id === current);
-
   return (
     <nav className="step-navigation" aria-label="Local preparation steps">
       <ol>
         {STEPS.map((step, index) => {
           const isCurrent = current === step.id;
-          const isDone = index < currentIndex && (index === 0 || hasFiles);
+          const isDone = !isCurrent && (
+            (step.id === 'setup' && hasWorkspace) ||
+            (step.id === 'files' && hasFiles && classificationPendingCount === 0 && (current === 'findings' || current === 'handoff'))
+          );
+          const count = step.id === 'files' ? classificationPendingCount : step.id === 'findings' ? fixCount : 0;
           return (
             <li key={step.id}>
               <button
                 type="button"
-                className={`step-button ${isCurrent ? 'is-active' : ''} ${isDone ? 'is-done' : ''}`}
+                className={`step-button ${isCurrent ? 'is-active' : isDone ? 'is-done' : ''}`}
                 aria-current={isCurrent ? 'step' : undefined}
-                disabled={!hasFiles && (step.id === 'findings' || step.id === 'handoff')}
+                disabled={step.id !== 'setup' && (!hasWorkspace || (step.id !== 'files' && !hasFiles))}
                 onClick={() => onNavigate(step.id)}
               >
                 <span className="step-badge" aria-hidden="true">
@@ -36,8 +39,8 @@ export function StepNavigation({ current, hasFiles, fixCount, onNavigate }: {
                   <strong>{step.label}</strong>
                   <small>{step.detail}</small>
                 </span>
-                {step.id === 'findings' && fixCount > 0 && (
-                  <span className="step-count">{fixCount}</span>
+                {hasFiles && count > 0 && (
+                  <span className="step-count" aria-label={`${count} ${step.id === 'files' ? 'types to confirm' : 'file fixes open'}`}>{count}</span>
                 )}
               </button>
             </li>

@@ -4,6 +4,8 @@
 **Updated:** 2026-11-23
 **Baseline:** [Prototype status](PROTOTYPE_STATUS.md), [architecture](ARCHITECTURE.md), [requirements traceability](REQUIREMENTS_TRACEABILITY.md), [original requirements](SOFTWARE_REQUIREMENTS.md).
 
+**Next iteration proposal:** [Preflight reliability and pilot implementation plan](PREFLIGHT_RELIABILITY_PLAN.md) details the findings from the project review, the proposed pull requests, and the evidence needed before a pilot.
+
 ## S0 iteration — first useful test-only slice
 
 The original plan made the first demonstration depend on a much broader system than is needed to try file preparation. S0 is an intentional sequencing/scope adjustment, not a declaration that those requirements are satisfied or deleted. Detailed capability and pending-test evidence lives in [PROTOTYPE_STATUS.md](PROTOTYPE_STATUS.md).

@@ -1,4 +1,5 @@
 node_modules/
+.claude/
 dist/
 coverage/
 .vite/
@@ -8,4 +9,5 @@ coverage/
 fixtures/private/
 test-results/
 playwright-report/
+.playwright-dist/
 *.log

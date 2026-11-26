@@ -24,6 +24,7 @@ export function PreparationSummary({ summary, fileCount, working, onCoverage }: 
         <dl className="summary-stats">
           <div><dt>Files</dt><dd>{fileCount}</dd></div>
           <div><dt>File issues</dt><dd className={summary.fixCount > 0 ? 'stat-warn' : ''}>{fileCount ? summary.fixCount : '—'}</dd></div>
+          {summary.classificationPendingCount > 0 && <div><dt>Types to confirm</dt><dd className="stat-warn">{summary.classificationPendingCount}</dd></div>}
           <div><dt>Manual reviews</dt><dd>{fileCount ? summary.reviewCount : '—'}</dd></div>
           <div><dt>Not assessed</dt><dd>{fileCount ? unassessed : '—'}</dd></div>
         </dl>

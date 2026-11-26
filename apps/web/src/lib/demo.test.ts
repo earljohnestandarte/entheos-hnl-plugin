@@ -32,7 +32,7 @@ describe('synthetic demo PDFs', () => {
       expect(drawnText(pdf)).toContain('NOT FOR CONSTRUCTION OR SUBMISSION');
     }
     const title = drawnText(await PDFDocument.load(await files[0].arrayBuffer()));
-    expect(title).toContain('123 Example Lane (SYNTHETIC)');
+    expect(title).toContain('123 Example Lane, Honolulu, HI (SYNTHETIC)');
     expect(title).toContain('Example Owner');
     expect(title).toContain('TMK: DEMO-ONLY');
     expect(title).toContain('FAR: 0.25');

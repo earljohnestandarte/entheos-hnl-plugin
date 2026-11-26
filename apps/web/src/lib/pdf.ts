@@ -69,7 +69,7 @@ export async function readPdf(file: File, signal: AbortSignal): Promise<{ pages:
   }
 }
 
-export async function renderPdfPage(file: File, pageNumber: number, canvas: HTMLCanvasElement, signal: AbortSignal): Promise<void> {
+export async function renderPdfPage(file: File, pageNumber: number, canvas: HTMLCanvasElement, signal: AbortSignal, zoom = 1): Promise<void> {
   let task: PDFDocumentLoadingTask | undefined;
   const cleanup = () => { if (task) { void task.destroy().catch(() => undefined); task = undefined; } };
   return withDeadline(signal, LIMITS.timeoutMs, async (activeSignal) => {
@@ -80,9 +80,11 @@ export async function renderPdfPage(file: File, pageNumber: number, canvas: HTML
     const page = await document.getPage(pageNumber);
     if (activeSignal.aborted) throw new DOMException('Canceled', 'AbortError');
     const base = page.getViewport({ scale: 1 });
-    const viewport = page.getViewport({ scale: Math.min(1100 / base.width, 1100 / base.height, 2) });
-    canvas.width = Math.floor(viewport.width);
-    canvas.height = Math.floor(viewport.height);
+    const fitScale = Math.min(1100 / base.width, 1100 / base.height, 2);
+    const renderLimit = Math.min(4096 / Math.max(base.width, base.height), Math.sqrt(8_000_000 / (base.width * base.height)));
+    const viewport = page.getViewport({ scale: Math.min(fitScale * zoom, renderLimit) });
+    canvas.width = Math.max(1, Math.floor(viewport.width));
+    canvas.height = Math.max(1, Math.floor(viewport.height));
     const context = canvas.getContext('2d');
     if (!context) throw new Error('PDF preview is unavailable.');
     await page.render({ canvas, canvasContext: context, viewport }).promise;

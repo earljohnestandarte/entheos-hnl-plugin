@@ -2,12 +2,12 @@ import { useEffect, useRef } from 'react';
 
 const HELP_STEPS = [
   {
-    title: 'Set up a local preparation set',
-    detail: 'Add your own permit PDFs or folder, or try the synthetic sample. No account or official application is created.',
+    title: 'Name your workspace',
+    detail: 'Enter a project name before adding files. Reopen Workspace setup to change it.',
   },
   {
     title: 'Add and classify your PDFs',
-    detail: 'Plans are drawing sheets; supporting documents can be multi-page forms or checklists. Review filename and content suggestions.',
+    detail: 'Add synthetic or approved test PDFs, or try the guided sample. Confirm drawing sheets as plans, forms as supporting documents, and checklists used for review as references.',
   },
   {
     title: 'Fix, replace, and review',
@@ -15,22 +15,43 @@ const HELP_STEPS = [
   },
   {
     title: 'Prepare for CivCheck',
-    detail: 'Download your package. Upload candidates and applicant-only references are separate. CivCheck still performs its own checks.',
+    detail: 'Use the on-screen checklist to rehearse the handoff. Download the package for local practice and keep the test files out of CivCheck.',
   },
 ];
 
 export function HelpDialog({ onClose }: { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { dialog.current?.showModal(); }, []);
+  function close() {
+    dialog.current?.close?.();
+    onClose();
+  }
   return (
-    <dialog ref={dialog} className="help-dialog" aria-labelledby="help-title" onCancel={onClose}>
+    <dialog ref={dialog} className="help-dialog" aria-labelledby="help-title" onCancel={(event) => { event.preventDefault(); close(); }}>
       <div className="dialog-top">
         <div>
           <h2 id="help-title">Using Preflight</h2>
         </div>
-        <button type="button" className="icon-button" aria-label="Close help" onClick={onClose}>×</button>
+        <button type="button" className="icon-button" aria-label="Close help" onClick={close}>×</button>
       </div>
-      <p className="muted">Prepared by EntheosIT for Honolulu permit PDF checks without duplicating official review. Opening this guide does not change your files.</p>
+      <div className="coverage-columns">
+        <div className="coverage-box is-covered">
+          <h3>Checked locally</h3>
+          <ul className="check-list">
+            <li>Filenames, duplicates, and title sheet</li>
+            <li>Plan sheet count, size, and orientation</li>
+            <li>Drawing-index matches and text-layer availability</li>
+          </ul>
+        </div>
+        <div className="coverage-box">
+          <h3>Reviewed by you</h3>
+          <ul className="check-list">
+            <li>Suggested title-block values and document pages</li>
+            <li>Required evidence, stamp space, and signatures</li>
+            <li>Project scope and code compliance</li>
+          </ul>
+        </div>
+      </div>
       <ol className="help-steps">
         {HELP_STEPS.map((item, index) => (
           <li key={item.title}>
@@ -43,11 +64,11 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
         ))}
       </ol>
       <div className="notice">
-        <strong>Not saved. Not an approval.</strong>
-        <p>Refresh clears this session. Files stay in your browser. Stamp space, signatures, required evidence, scope, and code compliance are not validated.</p>
+        <strong>Local test session</strong>
+        <p>Files stay in your browser. Refresh clears this session.</p>
       </div>
       <div className="action-row end">
-        <button type="button" className="button primary" onClick={onClose}>Back to my workspace</button>
+        <button type="button" className="button primary" onClick={close}>Close guide</button>
       </div>
     </dialog>
   );
