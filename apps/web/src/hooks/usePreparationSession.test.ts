@@ -196,6 +196,38 @@ describe('usePreparationSession', () => {
     expect(result.current.busy).toBe(false);
   });
 
+  it('auto-classifies code checklists and small multi-page documents as supporting unless manually overridden', async () => {
+    vi.mocked(readPdf)
+      .mockResolvedValueOnce({
+        hash: 'a'.repeat(64),
+        pages: Array.from({ length: 5 }, (_, index) => ({
+          page: index + 1,
+          widthInches: 8.5,
+          heightInches: 14,
+          rotation: 0,
+          text: 'REVIEW TYPE CODE TITLE SECTION CHECKLIST SUMMARY',
+        })),
+      })
+      .mockResolvedValueOnce({
+        hash: 'b'.repeat(64),
+        pages: [
+          { page: 1, widthInches: 8.5, heightInches: 11, rotation: 0, text: 'Owner letter page 1' },
+          { page: 2, widthInches: 8.5, heightInches: 11, rotation: 0, text: 'Owner letter page 2' },
+        ],
+      });
+    const { result } = renderHook(() => usePreparationSession());
+    await act(async () => {
+      await result.current.addFiles([
+        pdf('code-checklist__CIV-RHHZMD3-26.pdf'),
+        pdf('Owner Authorization.pdf'),
+      ]);
+    });
+    expect(result.current.items[0].record.kind).toBe('supporting');
+    expect(result.current.items[1].record.kind).toBe('supporting');
+    act(() => { result.current.classify(result.current.items[1].record.id, 'plan'); });
+    expect(result.current.items[1].record.kind).toBe('plan');
+  });
+
   it('exports one independent validated snapshot and prevents edits and duplicate actions during export', async () => {
     const exporting = deferred<Uint8Array>();
     vi.mocked(buildPackage).mockReturnValueOnce(exporting.promise);
@@ -222,7 +254,7 @@ describe('usePreparationSession', () => {
     expect(result.current.items[0].record.kind).toBe('plan');
     expect(result.current.exporting).toBe(true);
     await act(async () => { exporting.resolve(new Uint8Array([4])); await download; });
-    expect(downloadBytes).toHaveBeenCalledWith(new Uint8Array([4]), 'HNL-prescreen-demo-package.zip', 'application/zip');
+    expect(downloadBytes).toHaveBeenCalledWith(new Uint8Array([4]), 'HNL-prescreen-package.zip', 'application/zip');
     expect(result.current.notice).toContain('Package downloaded');
     expect(result.current.busy).toBe(false);
   });

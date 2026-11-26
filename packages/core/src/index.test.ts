@@ -208,7 +208,7 @@ describe('analyzeDocuments: scope and summary', () => {
 });
 
 describe('analyzeDocuments: naming', () => {
-  it.each(['A101 - Floor.pdf', 'AA101 - Roof.pdf', '101 - Detail.pdf', 'a101 - Floor.PDF'])
+  it.each(['A101 - Floor.pdf', 'AA101 - Roof.pdf', '101 - Detail.pdf', 'a101 - Floor.PDF', 'A001 General Informations.pdf', 'A102 Floor_Ceiling Plan.pdf'])
     ('accepts general plan naming %s', exportName => {
       const summary = analyzeDocuments([document(), plan({ exportName })]);
       expect(summary.fixCount).toBe(0);
@@ -216,7 +216,7 @@ describe('analyzeDocuments: naming', () => {
     });
 
   it.each(['ABC101 - Floor.pdf', 'A10 - Floor.pdf', 'A1001 - Floor.pdf', 'A101-Floor.pdf',
-    'A101 Floor.pdf', 'A101 -  Floor.pdf', 'A101 - .pdf', 'A101 - --.pdf'])
+    'A101 -  Floor.pdf', 'A101 - .pdf', 'A101 - --.pdf'])
     ('rejects invalid plan naming %s', exportName => {
       expect(findingsFor([document(), plan({ exportName })], 'plan-filename')).toHaveLength(1);
     });
@@ -232,7 +232,7 @@ describe('analyzeDocuments: naming', () => {
     expect(analyzeDocuments([document({ exportName: '../title.pdf' })]).formatChecksComplete).toBe(false);
   });
 
-  it.each(['000 - Title Sheet.pdf', '001 - Title Sheet.pdf', '001 - title sheet.PDF'])
+  it.each(['000 - Title Sheet.pdf', '001 - Title Sheet.pdf', '001 - title sheet.PDF', '000 Title Sheet.pdf', '001 Title Sheet.pdf'])
     ('accepts the explicit title plan %s', exportName => {
       expect(analyzeDocuments([document({ exportName })]).formatChecksComplete).toBe(true);
     });

@@ -2,10 +2,13 @@ import { getDocument, GlobalWorkerOptions, type PDFDocumentLoadingTask } from 'p
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { LIMITS, type PageInfo } from '@hnl/contracts';
 import { withDeadline } from './deadline';
+import { assemblePageText } from './pdfText';
+
+export { assemblePageText } from './pdfText';
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
-export class UnsupportedPdfError extends Error {}
+export class UnsupportedPdfError extends Error { }
 
 export async function readPdf(file: File, signal: AbortSignal): Promise<{ pages: PageInfo[]; hash: string }> {
   if (file.size > LIMITS.maxFileBytes) throw new UnsupportedPdfError('This prototype supports PDFs up to 25 MB.');
@@ -20,7 +23,7 @@ export async function readPdf(file: File, signal: AbortSignal): Promise<{ pages:
       const digest = await crypto.subtle.digest('SHA-256', bytes);
       const hash = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
       if (activeSignal.aborted) throw new DOMException('Canceled', 'AbortError');
-      task = getDocument({ data: bytes, isEvalSupported: false, useSystemFonts: true, stopAtErrors: true });
+      task = getDocument({ data: bytes, isEvalSupported: false, useSystemFonts: true, stopAtErrors: false });
       const document = await task.promise;
       if (document.numPages > LIMITS.maxPagesPerFile) throw new UnsupportedPdfError('This prototype supports up to 50 pages per PDF. Split the supporting document for testing.');
       const pages: PageInfo[] = [];
@@ -29,18 +32,30 @@ export async function readPdf(file: File, signal: AbortSignal): Promise<{ pages:
         const page = await document.getPage(number);
         const viewport = page.getViewport({ scale: 1 });
         const reader = page.streamTextContent().getReader();
-        let text = '';
+        const collected: Array<Record<string, unknown>> = [];
+        let approxChars = 0;
         try {
           while (true) {
             if (activeSignal.aborted) throw new DOMException('Canceled', 'AbortError');
             const chunk = await reader.read();
             if (chunk.done) break;
             for (const item of chunk.value.items) {
-              if ('str' in item) text += item.str + (item.hasEOL ? '\n' : ' ');
-              if (text.length > LIMITS.maxTextCharsPerPage) throw new UnsupportedPdfError('This page exceeds the prototype text limit. It has not been fully assessed.');
+              collected.push(item as Record<string, unknown>);
+              if ('str' in item) {
+                approxChars += item.str.length;
+                if (approxChars > LIMITS.maxTextCharsPerPage) {
+                  throw new UnsupportedPdfError('This page exceeds the prototype text limit. It has not been fully assessed.');
+                }
+              }
             }
           }
         } finally { void reader.cancel().catch(() => undefined); }
+        let text: string;
+        try {
+          text = assemblePageText(collected);
+        } catch (err) {
+          throw new UnsupportedPdfError(err instanceof Error ? err.message : 'This page exceeds the prototype text limit. It has not been fully assessed.');
+        }
         pages.push({ page: number, widthInches: viewport.width / 72, heightInches: viewport.height / 72, rotation: page.rotate, text });
         page.cleanup();
       }

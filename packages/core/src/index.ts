@@ -7,14 +7,29 @@ import {
   type FindingCategory,
   type PageInfo,
 } from '@hnl/contracts';
+import {
+  extractPlotDate,
+  extractProjectValues,
+  extractSheetIndexEntries,
+  parseCodeChecklists,
+  suggestDocumentAssignments,
+} from './extract';
+
+export {
+  extractPlotDate,
+  extractProjectValues,
+  extractSheetIndexEntries,
+  parseCodeChecklists,
+  suggestDocumentAssignments,
+} from './extract';
 
 const SIZE_TOLERANCE = 0.02;
 const ROUNDING_EPSILON = 1e-9;
 const PDF_EXTENSION = /\.pdf$/i;
-const TITLE_NAME = /^00[01] - Title Sheet\.pdf$/i;
-const PLAN_NAME = /^([a-z]{0,2}\d{3}) - (.+)\.pdf$/i;
+const TITLE_NAME = /^00[01](?: - | )Title Sheet\.pdf$/i;
+const PLAN_NAME = /^([a-z]{0,2}\d{3})(?: - | )([^\s-].*)\.pdf$/i;
 const WINDOWS_DEVICE = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
-const SOURCE = `${DEMO_RULE_PACK.source}; synthetic demo ${DEMO_RULE_PACK.id} v${DEMO_RULE_PACK.version}`;
+const SOURCE = `${DEMO_RULE_PACK.source}; ${DEMO_RULE_PACK.id} v${DEMO_RULE_PACK.version}`;
 
 function isReservedName(stem: string): boolean {
   return WINDOWS_DEVICE.test(stem.split('.')[0].trim());
@@ -106,11 +121,11 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
     });
   };
 
-  add('demo-disclaimer', 'advisory', 'Synthetic demo — not regulatory approval',
+  add('demo-disclaimer', 'advisory', 'Local preparation check — not regulatory approval',
     `${DEMO_RULE_PACK.authority} These covered file checks are not a compliance determination, permit approval, or verification of the current submission rules.`,
     'Confirm current requirements with the authority and complete professional/manual review.');
   add('scope-and-code-review', 'not-assessed', 'Scope, semantics, and code review are not assessed',
-    'Project scope, required supporting documents, drawing meaning, calculations, and applicable code requirements are not evaluated by this synthetic demo.',
+    'Project scope, required supporting documents, drawing meaning, calculations, and applicable code requirements are not fully evaluated locally.',
     'Have a qualified reviewer determine the applicable scope, verify the full document set, and review technical/code requirements.');
 
   const plans = documents.filter(file => file.kind === 'plan');
@@ -122,11 +137,11 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
   } else {
     if (!titlePlan) {
       add('title-plan-required', 'fix', 'A title plan is required',
-        'No plan is named 000 - Title Sheet.pdf or 001 - Title Sheet.pdf. A supporting document or a discipline-prefixed sheet does not satisfy this explicit title-name check.',
+        'No plan is named 000 Title Sheet.pdf / 000 - Title Sheet.pdf (or 001). A supporting document or a discipline-prefixed sheet does not satisfy this explicit title-name check.',
         'Identify the actual title sheet, verify its content, and preview its correct title filename; do not relabel an unrelated drawing.');
     }
     add('stamp-space-manual', 'not-assessed', 'Approval-stamp space needs manual inspection',
-      'Stamp-space detection is not implemented. This demo does not inspect the 5.75 × 3.75 inch top-right region for borders, lines, logos, or other marks.',
+      'Stamp-space detection is not implemented. This tool does not inspect the 5.75 × 3.75 inch top-right region for borders, lines, logos, or other marks.',
       'On every plan sheet, manually verify the required top-right approval-stamp space is completely clear and confirm the current rule.');
   }
 
@@ -151,11 +166,11 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
       const parts = planNameParts(file.exportName);
       if (!parts) {
         add('plan-filename', 'fix', 'Use the plan sheet naming pattern',
-          'Use at most two letters followed by three digits, then space-hyphen-space and a short description. The title plan must be 000 - Title Sheet.pdf or 001 - Title Sheet.pdf.',
+          'Use at most two letters followed by three digits, then a space (or space-hyphen-space) and a short description. The title plan must be 000 Title Sheet.pdf or 000 - Title Sheet.pdf (or 001).',
           `Preview "${suggestFilename(file.exportName, file.kind)}" and confirm the sheet number against the drawing/index. A000 - Review Sheet.pdf is a placeholder requiring user review.`, file);
       } else if (/^title[ _-]+sheet$/i.test(parts[2]) && !TITLE_NAME.test(file.exportName)) {
         add('title-filename', 'fix', 'Verify the explicit title-sheet filename',
-          'A sheet described as Title Sheet must use 000 - Title Sheet.pdf or 001 - Title Sheet.pdf, without a discipline prefix.',
+          'A sheet described as Title Sheet must use 000 Title Sheet.pdf or 000 - Title Sheet.pdf (or 001), without a discipline prefix.',
           'Confirm this is the actual title sheet and preview its corrected name; do not change sheet identity solely to clear a check.', file);
       }
     }
@@ -228,11 +243,15 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
     }
 
     if (file.kind === 'plan' && TITLE_NAME.test(file.exportName)) {
-      const text = file.pages.map(page => page.text).join('\n');
-      const titleEvidence = /\btitle\s+sheet\b/i.test(text);
-      const indexEvidence = /\b(?:sheet\s+index|(?:drawing|sheet)\s+list|index\s+of\s+(?:drawings|sheets))\b/i.test(text);
+      const titleText = file.pages.map(page => page.text).join('\n');
+      const setPlanText = plans
+        .filter(planFile => planFile.status === 'complete')
+        .map(planFile => planFile.pages.map(page => page.text).join('\n'))
+        .join('\n');
+      const titleEvidence = /\btitle\s+sheet\b/i.test(titleText);
+      const indexEvidence = /\b(?:sheet\s+index|index\s+to\s+drawings|(?:drawing|sheet)\s+list|index\s+of\s+(?:drawings|sheets))\b/i.test(setPlanText);
       add('title-and-index-review', 'review', 'Verify title-sheet and sheet-index evidence',
-        `The filename identifies a title candidate only. ${titleEvidence ? 'A Title Sheet text cue was found.' : 'No reliable Title Sheet text cue was extracted.'} ${indexEvidence ? 'A sheet-index text cue was found.' : 'No reliable sheet-index text cue was extracted.'} Keyword presence or absence does not verify the actual content.`,
+        `The filename identifies a title candidate only. ${titleEvidence ? 'A Title Sheet text cue was found.' : 'No reliable Title Sheet text cue was extracted.'} ${indexEvidence ? 'A sheet-index text cue was found in the plan set.' : 'No reliable sheet-index text cue was extracted.'} Keyword presence or absence does not verify the actual content.`,
         'Confirm this is the actual title sheet, place it first in the set, and visually match its sheet index against every plan filename and current revision.', file);
     }
   }
@@ -259,13 +278,93 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
       'Review all plan sheets and re-export them at one common size. Supporting forms are excluded from this comparison.', b, b.pages[0].page);
   }
 
-  // Never turn unverified scope or absent/partial extraction into a missing-note blocker.
-  if (plans.length > 0 && searchablePlans.length === plans.length &&
-      !searchablePlans.some(file => file.pages.some(page => /\b(?:FAR|floor\s+area\s+ratio)\b/i.test(page.text)))) {
-    const evidenceFile = searchablePlans.find(file => TITLE_NAME.test(file.exportName)) ?? searchablePlans[0];
-    add('far-evidence-advisory', 'advisory', 'Review FAR evidence if applicable',
-      'No FAR or floor area ratio text cue was extracted from the plan set. Scope is unverified and this heuristic is incomplete; this is not a finding that a required note is missing.',
-      'Determine whether FAR applies, then manually locate and verify any required values/calculations. A keyword alone cannot verify a calculation.', evidenceFile);
+  const extractedValues = extractProjectValues(documents);
+  const assignments = suggestDocumentAssignments(documents);
+  const checklistItems = parseCodeChecklists(documents);
+
+  // Surface conflicting project metadata across documents (e.g. TMK or address mismatch).
+  for (const entry of extractedValues) {
+    if (entry.status === 'conflicting' && entry.occurrences.length > 1) {
+      const distinct = [...new Set(entry.occurrences.map(item => `${item.fileName}: "${item.snippet}"`))].slice(0, 3);
+      add(`value-conflict-${entry.key}`, 'review', `Conflicting ${entry.label} values detected`,
+        `Multiple differing ${entry.label.toLowerCase()} values were extracted across documents (${distinct.join('; ')}).`,
+        `Verify the authoritative ${entry.label.toLowerCase()} and confirm every sheet title block and form matches.`,
+        documents.find(d => d.id === entry.occurrences[0].fileId), entry.occurrences[0].page);
+    }
+  }
+
+  // Sheet index vs uploaded plan files check when a drawing index is extracted.
+  const indexEntries = extractSheetIndexEntries(documents);
+  if (indexEntries.length > 0 && plans.length > 1 && plans.every(p => p.status === 'complete')) {
+    const uploadedCodes = new Set(
+      plans
+        .map(p => planNameParts(p.exportName)?.[1]?.toUpperCase() ?? (/^(00[01])\b/i.exec(p.exportName)?.[1]?.toUpperCase() ?? ''))
+        .filter(Boolean),
+    );
+    const indexedCodes = new Set(indexEntries.map(entry => entry.sheetId));
+    const missingFromUpload = indexEntries.filter(entry => !uploadedCodes.has(entry.sheetId));
+    const missingFromIndex = [...uploadedCodes].filter(code => !indexedCodes.has(code));
+    if (missingFromUpload.length > 0) {
+      const list = missingFromUpload.map(e => e.sheetId).join(', ');
+      add('sheet-index-missing-files', 'review', 'Sheets listed in drawing index were not found in uploads',
+        `The drawing index on ${indexEntries[0].fileName} lists sheet(s) ${list}, which do not match any uploaded plan filename.`,
+        'Add the missing PDF sheets or confirm whether the sheet index on your general information/title sheet is up to date.',
+        documents.find(d => d.id === indexEntries[0].fileId), 1);
+    }
+    if (missingFromIndex.length > 0) {
+      add('sheet-index-extra-files', 'advisory', 'Uploaded plan sheets not listed in drawing index',
+        `Uploaded sheet number(s) ${missingFromIndex.join(', ')} were not matched in the extracted drawing index on ${indexEntries[0].fileName}.`,
+        'Check that the sheet index includes every uploaded sheet number and matching sheet title.');
+    }
+  }
+
+  // Plot date consistency check across completed plans (common when mixing R1 & initial submittal sheets).
+  if (plans.length > 1 && plans.every(p => p.status === 'complete')) {
+    const byDate = new Map<string, string[]>();
+    for (const planFile of plans) {
+      const date = extractPlotDate(planFile);
+      if (!date) continue;
+      const group = byDate.get(date) ?? [];
+      group.push(planFile.exportName);
+      byDate.set(date, group);
+    }
+    if (byDate.size > 1) {
+      const summaryDates = [...byDate.entries()].map(([date, files]) => `${date} (${files.length} ${files.length === 1 ? 'sheet' : 'sheets'})`).join('; ');
+      add('mixed-plot-dates', 'advisory', 'Plan sheets have different plot dates',
+        `Detected multiple plot dates across the set: ${summaryDates}. Mixing sheets from different revisions can cause mismatched notes or outdated schedules.`,
+        'Confirm whether earlier-dated sheets are intentionally unchanged or need to be re-exported from the latest revision.');
+    }
+  }
+
+  // Real-document energy block and BWS/alarm text cues when searchable plans are present.
+  if (plans.length > 0 && searchablePlans.length === plans.length) {
+    const allPlanText = searchablePlans.map(file => file.pages.map(page => page.text).join('\n')).join('\n');
+    const energySheet = searchablePlans.find(file => /Building\s+Energy\s+Conservation\s+Code|CHAPTER\s+16B/i.test(file.pages.map(p => p.text).join('\n')));
+    if (energySheet) {
+      const sheetText = energySheet.pages.map(p => p.text).join('\n');
+      const blankSig = /(?:Signa[tu]re|Date)\s*:\s*\n*\s*_{4,}/i.test(sheetText);
+      if (blankSig) {
+        add('energy-block-signature', 'review', 'Energy code compliance block appears unsigned or undated',
+          `Detected a Building Energy Conservation Code block on "${energySheet.exportName}" with blank signature/date lines in extracted text.`,
+          'Verify the Energy Code Compliance Block is signed, dated, and references the current applicable code (e.g., ROH 2021 Chapter 16B) before final submission.',
+          energySheet, 1);
+      }
+    }
+
+    if (!/\b(?:FAR|floor\s+area\s+ratio)\b/i.test(allPlanText)) {
+      const evidenceFile = searchablePlans.find(file => TITLE_NAME.test(file.exportName)) ?? searchablePlans[0];
+      const farEntry = extractedValues.find(item => item.key === 'far');
+      const derivedNote = farEntry?.status === 'derived' ? ` Computed ratio from extracted floor/lot areas: ${farEntry.value}.` : '';
+      add('far-evidence-advisory', 'advisory', 'Review FAR evidence if applicable',
+        `No explicit FAR or floor area ratio text cue was extracted from the plan set.${derivedNote} Scope is unverified and this heuristic is incomplete; this is not a finding that a required note is missing.`,
+        'Determine whether FAR applies, then add or locate the explicit FAR value/calculation on the general information or title sheet for CivCheck highlighting.', evidenceFile);
+    }
+
+    if (searchablePlans.length > 1 && !/\bno\s+irrigation\b/i.test(allPlanText) && !/\birrigation\b/i.test(allPlanText)) {
+      add('bws-irrigation-note-advisory', 'advisory', 'Check BWS irrigation & fire sprinkler notes',
+        'No irrigation or fire sprinkler note cue was extracted from the plan set text.',
+        'If the project has no irrigation or fire sprinkler system, include explicit "No irrigation" and "No automatic fire sprinkler" notes for Board of Water Supply review.');
+    }
   }
 
   const fixCount = findings.filter(finding => finding.category === 'fix').length;
@@ -275,6 +374,7 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
     titlePlan !== undefined && fixCount === 0 && pendingCount === 0;
   return {
     findings, fixCount, reviewCount, pendingCount, completedCount, formatChecksComplete,
+    extractedValues, assignments, checklistItems,
     label: formatChecksComplete ? 'Covered file checks complete'
       : documents.length === 0 ? 'Add files to run covered file checks'
         : pendingCount > 0 ? 'Covered file checks incomplete' : 'Covered file checks need fixes',

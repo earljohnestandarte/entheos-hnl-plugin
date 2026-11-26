@@ -8,9 +8,14 @@ export interface SourceDocument {
   file: File;
 }
 
-const LABEL = 'SYNTHETIC-DEMO PACKAGE - NOT A COMPLIANCE DETERMINATION';
+const DEMO_LABEL = 'SYNTHETIC-DEMO PACKAGE - NOT A COMPLIANCE DETERMINATION';
+const REAL_LABEL = 'LOCAL PREPARATION PACKAGE - NOT A COMPLIANCE DETERMINATION';
 const DISCLAIMER = 'Preparation reference only. Unresolved fixes and manual reviews may remain. This package does not establish completeness, code compliance, permit approval, or readiness for submission.';
-const EXPORT_PACK = { id: 'hnl-preparation-export', version: '0.1.0' } as const;
+const EXPORT_PACK = { id: 'hnl-preparation-export', version: '0.2.0' } as const;
+
+export interface BuildPackageOptions {
+  syntheticDemo?: boolean;
+}
 
 async function sha256(bytes: Uint8Array): Promise<string> {
   if (!globalThis.crypto?.subtle) {
@@ -61,10 +66,10 @@ function findingFileName(finding: Finding, documents: DocumentRecord[]): string 
   return documents.find((record) => record.id === finding.fileId)?.exportName ?? '';
 }
 
-function findingsCsv(documents: DocumentRecord[], findings: Finding[]): string {
+function findingsCsv(documents: DocumentRecord[], findings: Finding[], label: string): string {
   const columns = ['packageLabel', 'id', 'ruleId', 'category', 'title', 'detail', 'action', 'source', 'fileId', 'fileName', 'page', 'revision'];
   const rows = findings.map((finding) => [
-    LABEL, finding.id, finding.ruleId, finding.category, finding.title, finding.detail,
+    label, finding.id, finding.ruleId, finding.category, finding.title, finding.detail,
     finding.action, finding.source, finding.fileId ?? '', findingFileName(finding, documents),
     finding.page === undefined ? '' : String(finding.page),
     finding.revision === undefined ? '' : String(finding.revision),
@@ -74,11 +79,11 @@ function findingsCsv(documents: DocumentRecord[], findings: Finding[]): string {
   return [columns, ...rows].map((row) => row.map((cell) => csvCell(cell)).join(',')).join('\r\n') + '\r\n';
 }
 
-function guide(documents: DocumentRecord[], findings: Finding[]): string {
+function guide(documents: DocumentRecord[], findings: Finding[], label: string, syntheticDemo: boolean): string {
   const fixes = findings.filter((finding) => finding.category === 'fix').length;
   const manual = findings.filter((finding) => finding.category === 'review' || finding.category === 'not-assessed').length;
   return [
-    LABEL,
+    label,
     DISCLAIMER,
     `Unresolved findings: ${fixes} fix; ${manual} manual review/not assessed. Zero findings is not proof of compliance.`,
     '',
@@ -86,7 +91,9 @@ function guide(documents: DocumentRecord[], findings: Finding[]): string {
     'upload/plan/: unchanged source PDF bytes, with the selected export filenames.',
     'upload/supporting/: unchanged supporting PDF bytes, with the selected export filenames.',
     'reference/: guide, findings CSV, manifest JSON, and readiness PDF. These are local reference reports, NOT upload candidates.',
-    'The synthetic-demo label describes this demonstration package; it does not certify the provenance or accuracy of user-provided source PDFs.',
+    syntheticDemo
+      ? 'The synthetic-demo label describes this demonstration package; it does not certify the provenance or accuracy of user-provided source PDFs.'
+      : 'All source bytes in upload/ are preserved unchanged from your local files.',
     '',
     'MANUAL CIVCHECK HANDOFF - confirm current instructions in the actual portal',
     '1. Extract the ZIP locally. This is an organizational download, not a CivCheck ingestion format. Do not upload this ZIP or any reference/ report to CivCheck.',
@@ -159,10 +166,12 @@ async function readinessReport(
   findings: Finding[],
   exportedAt: string,
   projectRevision: string,
+  label: string,
+  syntheticDemo: boolean,
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
-  pdf.setTitle('Synthetic-demo preparation reference - not compliance');
-  pdf.setAuthor('HNL preparation demo');
+  pdf.setTitle(syntheticDemo ? 'Synthetic-demo preparation reference - not compliance' : 'Local preparation reference - not compliance');
+  pdf.setAuthor('HNL Preflight');
   pdf.setCreator(`HNL preparation export ${EXPORT_PACK.version}`);
   pdf.setSubject('Reference only; not an upload document, certificate, or approval.');
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -224,7 +233,7 @@ async function readinessReport(
   }
   const pages = pdf.getPages();
   pages.forEach((item, index) => {
-    item.drawText(LABEL, { x: 48, y: 754, size: 8, font: bold });
+    item.drawText(label, { x: 48, y: 754, size: 8, font: bold });
     item.drawText(`REFERENCE ONLY - NOT FOR UPLOAD | Page ${index + 1} of ${pages.length}`, { x: 48, y: 30, size: 8, font });
   });
   return pdf.save();
@@ -235,7 +244,10 @@ export async function buildPackage(
   projectName: string,
   documents: SourceDocument[],
   findings: Finding[],
+  options?: BuildPackageOptions,
 ): Promise<Uint8Array> {
+  const syntheticDemo = options?.syntheticDemo ?? true;
+  const label = syntheticDemo ? DEMO_LABEL : REAL_LABEL;
   if (documents.length === 0) throw new Error('At least one source document is required.');
   // Snapshot before awaiting hash reads so UI changes cannot mix two revisions.
   const sources = documents.map(({ record, file }) => ({ record: structuredClone(record), file }));
@@ -277,8 +289,8 @@ export async function buildPackage(
   })));
   const manifest = {
     schemaVersion: 1,
-    packageLabel: LABEL,
-    syntheticDemo: true,
+    packageLabel: label,
+    syntheticDemo,
     disclaimer: DISCLAIMER,
     exportedAt,
     projectName,
@@ -308,10 +320,10 @@ export async function buildPackage(
     referenceFiles: ['reference/guide.txt', 'reference/findings.csv', 'reference/manifest.json', 'reference/readiness.pdf'],
     referenceFilesAreUploadCandidates: false,
   };
-  entries['reference/guide.txt'] = strToU8(guide(records, snapshotFindings));
-  entries['reference/findings.csv'] = strToU8(findingsCsv(records, snapshotFindings));
+  entries['reference/guide.txt'] = strToU8(guide(records, snapshotFindings, label, syntheticDemo));
+  entries['reference/findings.csv'] = strToU8(findingsCsv(records, snapshotFindings, label));
   entries['reference/manifest.json'] = strToU8(JSON.stringify(manifest, null, 2));
-  entries['reference/readiness.pdf'] = await readinessReport(projectName, records, snapshotFindings, exportedAt, projectRevision);
+  entries['reference/readiness.pdf'] = await readinessReport(projectName, records, snapshotFindings, exportedAt, projectRevision, label, syntheticDemo);
   return zipSync(entries, { level: 6 });
 }
 

@@ -4,7 +4,29 @@ import { LIMITS, type CheckSummary, type FileKind } from '@hnl/contracts';
 import { readPdf, UnsupportedPdfError } from '../lib/pdf';
 import type { SourceDocument } from '../lib/export';
 
-export type Item = SourceDocument & { demo: boolean };
+export type Item = SourceDocument & { demo: boolean; manualKind?: boolean };
+
+const SUPPORTING_NAME_PATTERN = /\b(?:support(?:ing)?|forms?|escp|rswmp|checklist|attachment|letter|application|tpr|otr|survey|report|calc|spec|manual)\b/i;
+const PLAN_SHEET_PREFIX = /^(?:00[01]|[a-z]{0,2}\d{3})\b/i;
+
+function inferInitialKind(filename: string): FileKind {
+  return SUPPORTING_NAME_PATTERN.test(filename) ? 'supporting' : 'plan';
+}
+
+function refineKindFromPages(
+  currentKind: FileKind,
+  filename: string,
+  pages: Array<{ widthInches: number; heightInches: number; text: string }>,
+): FileKind {
+  if (pages.length === 0) return currentKind;
+  if (SUPPORTING_NAME_PATTERN.test(filename)) return 'supporting';
+  const combinedText = pages.map((page) => page.text).join('\n');
+  if (/\bREVIEW\s+TYPE\b[\s\S]{0,60}\bCHECKLIST\s+SUMMARY\b/i.test(combinedText)) return 'supporting';
+  if (!PLAN_SHEET_PREFIX.test(filename) && (pages.length > 1 || Math.max(pages[0].widthInches, pages[0].heightInches) <= 18)) {
+    return 'supporting';
+  }
+  return currentKind;
+}
 
 export interface PreparationSession {
   items: Item[];
@@ -81,7 +103,16 @@ export function usePreparationSession(): PreparationSession {
       const result = await readPdf(item.file, controller.signal);
       if (!mounted.current || generation.current !== epoch || controller.signal.aborted) return;
       changeItems((previous) => previous.map((entry) => entry.record.id === item.record.id && entry.record.revision === item.record.revision
-        ? { ...entry, record: { ...entry.record, ...result, status: 'complete' } } : entry));
+        ? {
+          ...entry,
+          record: {
+            ...entry.record,
+            ...result,
+            kind: entry.manualKind ? entry.record.kind : refineKindFromPages(entry.record.kind, entry.record.originalName, result.pages),
+            status: 'complete',
+          },
+        }
+        : entry));
     } catch (failure) {
       if (!mounted.current || generation.current !== epoch || controller.signal.aborted) return;
       const unsupported = failure instanceof UnsupportedPdfError;
@@ -102,7 +133,7 @@ export function usePreparationSession(): PreparationSession {
     const token = heldOperation ?? Symbol('add');
     operation.current = token;
     const epoch = generation.current;
-    const additions: Item[] = files.map((file) => ({ file, demo, record: { id: crypto.randomUUID(), revision: 1, originalName: file.name, exportName: file.name, kind: /support|form|escp|rswmp/i.test(file.name) ? 'supporting' : 'plan', bytes: file.size, hash: '', status: 'analyzing', pages: [] } }));
+    const additions: Item[] = files.map((file) => ({ file, demo, record: { id: crypto.randomUUID(), revision: 1, originalName: file.name, exportName: file.name, kind: inferInitialKind(file.name), bytes: file.size, hash: '', status: 'analyzing', pages: [] } }));
     changeItems((previous) => [...previous, ...additions]);
     setWorking(true);
     try {
@@ -213,13 +244,17 @@ export function usePreparationSession(): PreparationSession {
     exportingRef.current = true;
     setExporting(true); setError(''); setNotice('');
     const snapshot: SourceDocument[] = itemsRef.current.map((item) => ({ file: item.file, record: { ...item.record, pages: item.record.pages.map((page) => ({ ...page })) } }));
+    const syntheticDemo = itemsRef.current.some((item) => item.demo);
     try {
       const { buildPackage, downloadBytes } = await import('../lib/export');
       if (!isActive(epoch, token)) return;
       // The exporter validates every snapshot record and verifies the original source bytes.
-      const bytes = await buildPackage(projectName, snapshot, analyzeDocuments(snapshot.map((item) => item.record)).findings);
+      const findings = analyzeDocuments(snapshot.map((item) => item.record)).findings;
+      const bytes = syntheticDemo
+        ? await buildPackage(projectName, snapshot, findings)
+        : await buildPackage(projectName, snapshot, findings, { syntheticDemo: false });
       if (!isActive(epoch, token)) return;
-      downloadBytes(bytes, 'HNL-prescreen-demo-package.zip', 'application/zip');
+      downloadBytes(bytes, syntheticDemo ? 'HNL-prescreen-demo-package.zip' : 'HNL-prescreen-package.zip', 'application/zip');
       setNotice('Package downloaded. Extract the ZIP; upload only the intended files in upload/. Keep reference/ for your own use.');
     } catch (failure) {
       if (isActive(epoch, token)) setError(failure instanceof Error ? failure.message : 'The package could not be created.');
@@ -239,7 +274,7 @@ export function usePreparationSession(): PreparationSession {
 
   function classify(id: string, kind: FileKind): void {
     if (!mounted.current || operation.current || exportingRef.current) return;
-    changeItems((all) => all.map((item) => item.record.id === id ? { ...item, record: { ...item.record, kind } } : item));
+    changeItems((all) => all.map((item) => item.record.id === id ? { ...item, manualKind: true, record: { ...item.record, kind } } : item));
   }
 
   return {

@@ -70,7 +70,7 @@ describe('buildPackage', () => {
       syntheticDemo: true, applicationPersistence: false, complianceAssessed: false,
       submissionReady: false, referenceFilesAreUploadCandidates: false,
       projectName: 'Example project', unresolved: { fix: 1, review: 1, notAssessed: 0 },
-      rulePack: { id: 'hnl-preparation-demo', version: '0.1.0' },
+      rulePack: { id: 'hnl-preparation-demo', version: '0.2.0' },
       libraries: { 'pdf-lib': '1.17.1', fflate: '0.8.3' },
     });
     expect(manifest.projectRevision).toMatch(/^[a-f\d]{64}$/);
@@ -197,6 +197,16 @@ describe('buildPackage', () => {
     expect(Math.max(...positions)).toBeLessThanOrEqual(754);
     expect(JSON.parse(strFromU8(entries['reference/manifest.json'])).findings[0].detail).toBe(longDetail);
     expect(strFromU8(entries['reference/findings.csv'])).toContain('測試');
+  });
+
+  it('labels non-demo user exports as local preparation packages without synthetic-demo branding', async () => {
+    const input = await source();
+    const entries = unzipSync(await buildPackage('Sickels Residence', [input], [], { syntheticDemo: false }));
+    const manifest = JSON.parse(strFromU8(entries['reference/manifest.json']));
+    expect(manifest.syntheticDemo).toBe(false);
+    expect(manifest.packageLabel).toBe('LOCAL PREPARATION PACKAGE - NOT A COMPLIANCE DETERMINATION');
+    expect(strFromU8(entries['reference/guide.txt'])).toContain('LOCAL PREPARATION PACKAGE');
+    expect(drawnText(await PDFDocument.load(entries['reference/readiness.pdf']))).toContain('LOCAL PREPARATION PACKAGE');
   });
 
   it('derives a stable snapshot revision that changes with filenames, file revisions, or findings', async () => {

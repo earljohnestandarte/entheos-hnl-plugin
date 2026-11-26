@@ -43,7 +43,7 @@ function deferred<T>() {
 
 function prepareStart(path: 'sample' | 'test' = 'sample', name = 'Integration set') {
   fireEvent.click(screen.getByRole('button', { name: /Get started/ }));
-  fireEvent.click(screen.getByRole('radio', { name: path === 'test' ? /Use my test PDFs/ : /Try the guided sample/ }));
+  fireEvent.click(screen.getByRole('radio', { name: path === 'test' ? /Use my project PDFs/ : /Try the guided sample/ }));
   fireEvent.click(screen.getByRole('button', { name: /^Continue/ }));
   fireEvent.change(screen.getByLabelText('Preparation set name'), { target: { value: name } });
   fireEvent.click(screen.getByRole('checkbox'));
@@ -232,7 +232,7 @@ describe('App preparation journeys', () => {
     expect(signal.aborted).toBe(true);
     await startWorkspace('test', 'Fresh workspace');
     const freshName = 'A201 - New Plan.pdf';
-    fireEvent.change(screen.getByLabelText('Add test PDFs'), { target: { files: [pdf(freshName)] } });
+    fireEvent.change(screen.getByLabelText('Add project PDFs'), { target: { files: [pdf(freshName)] } });
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('File analysis finished'));
     await act(async () => { parsing.resolve(metadata(correctedName)); });
     expectFiles([freshName]);
