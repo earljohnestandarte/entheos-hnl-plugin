@@ -171,7 +171,7 @@ async function readinessReport(
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   pdf.setTitle(syntheticDemo ? 'Synthetic-demo preparation reference - not compliance' : 'Local preparation reference - not compliance');
-  pdf.setAuthor('HNL Preflight');
+  pdf.setAuthor('EntheosIT Preflight');
   pdf.setCreator(`HNL preparation export ${EXPORT_PACK.version}`);
   pdf.setSubject('Reference only; not an upload document, certificate, or approval.');
   const font = await pdf.embedFont(StandardFonts.Helvetica);

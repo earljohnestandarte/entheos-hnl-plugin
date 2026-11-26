@@ -30,7 +30,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
         </div>
         <button type="button" className="icon-button" aria-label="Close help" onClick={onClose}>×</button>
       </div>
-      <p className="muted">Familiar steps, without duplicating the official review. Opening this guide does not change your files.</p>
+      <p className="muted">Prepared by EntheosIT for Honolulu permit PDF checks without duplicating official review. Opening this guide does not change your files.</p>
       <ol className="help-steps">
         {HELP_STEPS.map((item, index) => (
           <li key={item.title}>

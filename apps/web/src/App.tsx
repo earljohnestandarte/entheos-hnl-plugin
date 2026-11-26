@@ -81,7 +81,7 @@ export default function App() {
   return <>
     <a className="skip-link" href="#main">Skip to workspace</a>
     <header className="topbar"><div className="topbar-inner">
-      <a className="brand" href="#main" aria-label="HNL Preflight home"><span className="brand-initials">HNL</span><strong>Preflight</strong><span className="brand-description">Honolulu permit PDF preparation</span></a>
+      <a className="brand" href="#main" aria-label="EntheosIT Preflight home"><img className="brand-logo" src="/entheos-logo.png" alt="EntheosIT" /><span className="brand-divider" aria-hidden="true" /><strong>Preflight</strong><span className="brand-description">Honolulu permit PDF preparation</span></a>
       <div className="header-actions"><button type="button" className="button ghost sm" onClick={() => setHelp(true)}>How it works</button></div>
     </div></header>
     <main id="main" className="app-main">
@@ -104,7 +104,7 @@ export default function App() {
           <div className="workspace-reset">{clearConfirm ? <div className="notice reset-confirm"><strong>Clear this workspace and start again?</strong><p>All files and findings in this session will be removed. Originals and downloads stay unchanged.</p><div className="action-row reset-actions"><button className="button secondary danger-outline" disabled={session.exporting} onClick={reset}>Clear and start again</button><button className="button primary" onClick={() => setClearConfirm(false)}>Keep working</button></div></div> : <button className="button ghost sm" disabled={session.exporting} onClick={() => setClearConfirm(true)}>Start a new preparation set</button>}</div>
         </div><PreparationSummary summary={session.summary} fileCount={session.items.length} working={session.working} onCoverage={() => { setFindingFilter('not-assessed'); setStep('findings'); }} /></div>
       </>}
-      <footer className="footer"><span>HNL Preflight, local browser preparation</span><span>Not affiliated with Honolulu DPP or Clariti. Files remain in this tab and are not uploaded.</span></footer>
+      <footer className="footer"><span><a href="https://entheosit.com/" target="_blank" rel="noreferrer">EntheosIT</a> Preflight, local browser preparation</span><span>© 2026 Entheos Inc. Not affiliated with Honolulu DPP or Clariti. Files remain in this tab and are not uploaded.</span></footer>
     </main>
     {help && <HelpDialog onClose={() => setHelp(false)} />}
     {selected && preview && <PdfPreview key={`${selected.record.id}-${selected.record.revision}`} record={selected.record} file={selected.file} initialPage={preview.page} onClose={() => setPreview(null)} />}
