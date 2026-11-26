@@ -4,6 +4,7 @@ import { IconAlert, IconCheck, IconEye, IconReplace, IconTrash, SheetThumb } fro
 import { FilenameValidatorEditor } from './FilenameValidatorEditor';
 import { fileVerificationKey, validateDocumentChecks } from '../lib/exportNames';
 import { handoffFiles } from '../lib/handoffFiles';
+import { fileStatusMeta, TONE_BADGE_CLASS } from '../lib/status';
 
 interface FileItem { record: DocumentRecord; demo: boolean }
 interface Props {
@@ -176,11 +177,7 @@ export function FilesPanel(props: Props) {
             const isFixed = count === 0 && fileResolvedFixes.length > 0 && record.status === 'complete' && !record.typeReview;
             const checksOpen = Boolean(expandedChecks[record.id]);
             const validationChecks = checksOpen ? validateDocumentChecks(record, nameRecords, summary) : [];
-            const statusTone = record.status === 'analyzing'
-              ? 'badge-info'
-              : record.status !== 'complete' || count > 0 || record.typeReview
-                ? 'badge-warning'
-                : 'badge-green';
+            const fileStatus = fileStatusMeta(record, count);
             return (
               <article
                 id={`file-${record.id}`}
@@ -208,18 +205,16 @@ export function FilesPanel(props: Props) {
                     </p>
                   </div>
                   <div className="file-badges">
-                    <span className={`pill-badge ${statusTone}`}>
-                      {record.status === 'analyzing' ? 'Processing' : record.status !== 'complete' ? 'Needs attention'
-                        : record.typeReview ? 'Confirm type' : count ? `${count} ${count === 1 ? 'fix' : 'fixes'}`
-                        : record.disposition === 'reference' ? 'Review only' : 'Checked'}
+                    <span className={`pill-badge ${TONE_BADGE_CLASS[fileStatus.tone]}`}>
+                      {fileStatus.label}
                     </span>
                     {isFixed && (
-                      <span className="pill-badge badge-green verified-pill">
+                      <span className="pill-badge badge-success verified-pill">
                         <IconCheck width={12} height={12} /> Fixed
                       </span>
                     )}
                     {isVerified && (
-                      <span className="pill-badge badge-green verified-pill">
+                      <span className="pill-badge badge-success verified-pill">
                         <IconCheck width={12} height={12} /> Verified
                       </span>
                     )}

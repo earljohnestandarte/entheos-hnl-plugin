@@ -2,6 +2,7 @@ import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'rea
 import { DEMO_RULE_PACK, type CheckSummary, type DocumentRecord, type FileKind, type Finding, type FindingCategory } from '@hnl/contracts';
 import { FilenameValidatorEditor } from './FilenameValidatorEditor';
 import { handoffFiles } from '../lib/handoffFiles';
+import { FINDING_STATUS_META, TONE_BADGE_CLASS, type StatusTone } from '../lib/status';
 import { IconCheck, IconCopy, IconEye, IconReplace } from './Icons';
 
 export interface FindingsPanelProps {
@@ -24,24 +25,6 @@ export interface FindingsPanelProps {
 type FindingsTab = 'checklist' | 'values' | 'mapping' | 'imported';
 
 const categories: FindingCategory[] = ['fix', 'review', 'advisory', 'not-assessed'];
-const categoryLabels: Record<FindingCategory, string> = {
-  fix: 'Fix before CivCheck',
-  review: 'Review before CivCheck',
-  advisory: 'Helpful suggestions',
-  'not-assessed': 'Not assessed by this tool',
-};
-const filterLabels: Record<FindingCategory, string> = {
-  fix: 'Fix',
-  review: 'Review',
-  advisory: 'Advice',
-  'not-assessed': 'Not assessed',
-};
-const categoryDescriptions: Record<FindingCategory, string> = {
-  fix: 'Address these covered file-check issues first. They are not a code-compliance verdict.',
-  review: 'Check the actual drawings and project records. Automated file checks cannot verify these details.',
-  advisory: 'Suggestions and limited evidence cues, not confirmed missing requirements.',
-  'not-assessed': 'Outside automated file coverage or could not be completed.',
-};
 
 function checklistTone(reviewType: string): string {
   const lower = reviewType.toLowerCase();
@@ -108,16 +91,18 @@ function FindingCard({
   const canInlineRename = Boolean(record && onRename && FILENAME_RULES.has(finding.ruleId));
   const canInlineReplace = Boolean(record && onStartReplace && PDF_REPLACE_RULES.has(finding.ruleId));
   const canInlineClassify = Boolean(record && onClassify && finding.ruleId === 'confirm-file-type');
+  const meta = FINDING_STATUS_META[category];
+  const badgeTone: StatusTone = isVerified ? 'success' : meta.tone;
+  const badgeLabel = isVerified ? 'Verified' : meta.label;
   return (
     <article className={`finding-card finding-${category} ${isVerified ? 'is-verified' : ''}`} key={finding.id}>
       <div className="finding-card-head">
         <div className="finding-card-title-row">
           <h4>{finding.title}</h4>
-          {isVerified && (
-            <span className="pill-badge badge-green verified-pill">
-              <IconCheck width={12} height={12} /> Verified
-            </span>
-          )}
+          <span className={`pill-badge ${TONE_BADGE_CLASS[badgeTone]} ${isVerified ? 'verified-pill' : ''}`}>
+            {isVerified && <IconCheck width={12} height={12} />}
+            {badgeLabel}
+          </span>
         </div>
         <p className="muted">
           {record
@@ -381,24 +366,32 @@ export function FindingsPanel({
                   All findings ({summary.findings.length})
                 </button>
                 {categories.map((category) => {
+                  const meta = FINDING_STATUS_META[category];
                   const count = category === 'review'
                     ? openReviewCount
                     : summary.findings.filter((finding) => finding.category === category).length;
+                  const pillTone: StatusTone = category === 'fix'
+                    ? (count > 0 ? 'warning' : resolvedFixes.length > 0 ? 'success' : 'neutral')
+                    : category === 'review'
+                      ? (count > 0 ? 'info' : summary.reviewCount > 0 ? 'success' : 'neutral')
+                      : meta.tone;
                   return (
                     <button
                       type="button"
                       key={category}
-                      className={`filter-button ${filter === category ? 'is-active' : ''}`}
+                      className={`filter-button tone-${pillTone} ${filter === category ? 'is-active' : ''}`}
                       aria-pressed={filter === category}
                       onClick={() => setFilter(category)}
                     >
-                      {filterLabels[category]} ({count})
+                      <span className={`status-dot tone-${pillTone}`} aria-hidden="true" />
+                      <span>{meta.label} ({count})</span>
                     </button>
                   );
                 })}
               </div>
 
               {visibleCategories.map((category) => {
+                const meta = FINDING_STATUS_META[category];
                 const findings = summary.findings.filter((finding) => finding.category === category);
                 const openInCategory = category === 'review'
                   ? findings.filter((finding) => !verifiedSet.has(finding.id)).length
@@ -414,9 +407,12 @@ export function FindingsPanel({
 
                 const groupResolvedFixes = category === 'fix' ? resolvedFixes : [];
                 return (
-                  <section className="finding-group" key={category} aria-label={categoryLabels[category]}>
+                  <section className="finding-group" key={category} aria-label={meta.groupTitle}>
                     <div className="finding-group-head">
-                      <h3>{categoryLabels[category]}</h3>
+                      <div className="finding-group-title">
+                        <span className={`status-dot tone-${meta.tone}`} aria-hidden="true" />
+                        <h3>{meta.groupTitle}</h3>
+                      </div>
                       <span className="panel-meta">
                         {category === 'review' && verifiedReviewCount > 0
                           ? `${openInCategory} open · ${findings.length - openInCategory} verified`
@@ -425,7 +421,7 @@ export function FindingsPanel({
                             : findings.length}
                       </span>
                     </div>
-                    <p className="muted">{categoryDescriptions[category]}</p>
+                    <p className="muted">{meta.description}</p>
 
                     {!findings.length && !groupResolvedFixes.length ? (
                       <div className="empty-state compact">
@@ -462,7 +458,7 @@ export function FindingsPanel({
                               <div className="finding-card-head">
                                 <div className="finding-card-title-row">
                                   <h4>{finding.title}</h4>
-                                  <span className="pill-badge badge-green verified-pill">
+                                  <span className="pill-badge badge-success verified-pill">
                                     <IconCheck width={12} height={12} /> Fixed
                                   </span>
                                 </div>
@@ -493,11 +489,10 @@ export function FindingsPanel({
                             <div className="finding-card-head">
                               <div className="finding-card-title-row">
                                 <h4>Verify title-block values across {titleBlockReviews.length} plan sheets</h4>
-                                {allGroupedVerified && (
-                                  <span className="pill-badge badge-green verified-pill">
-                                    <IconCheck width={12} height={12} /> Verified
-                                  </span>
-                                )}
+                                <span className={`pill-badge ${allGroupedVerified ? 'badge-success verified-pill' : 'badge-info'}`}>
+                                  {allGroupedVerified && <IconCheck width={12} height={12} />}
+                                  {allGroupedVerified ? 'Verified' : 'Review'}
+                                </span>
                               </div>
                               <p className="muted">
                                 Grouped across {titleBlockReviews.length} sheets

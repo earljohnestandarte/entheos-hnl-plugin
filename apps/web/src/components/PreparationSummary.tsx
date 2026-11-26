@@ -27,7 +27,7 @@ export function PreparationSummary({ summary, fileCount, working, verifiedReview
         <dl className="summary-stats">
           <div><dt>Files</dt><dd>{fileCount}</dd></div>
           <div>
-            <dt>File issues</dt>
+            <dt>Fix</dt>
             <dd className={summary.fixCount > 0 ? 'stat-warn' : ''}>
               {fileCount ? summary.fixCount : '—'}
             </dd>
@@ -35,15 +35,15 @@ export function PreparationSummary({ summary, fileCount, working, verifiedReview
           {fileCount > 0 && resolvedFixCount > 0 && (
             <div><dt>Fixed</dt><dd className="stat-ok">{resolvedFixCount}</dd></div>
           )}
-          {summary.classificationPendingCount > 0 && <div><dt>Types to confirm</dt><dd className="stat-warn">{summary.classificationPendingCount}</dd></div>}
+          {summary.classificationPendingCount > 0 && <div><dt>Confirm type</dt><dd className="stat-warn">{summary.classificationPendingCount}</dd></div>}
           <div>
-            <dt>Manual reviews</dt>
-            <dd>{fileCount ? openReviews : '—'}</dd>
+            <dt>Review</dt>
+            <dd className={openReviews > 0 ? 'stat-info' : ''}>{fileCount ? openReviews : '—'}</dd>
           </div>
           {fileCount > 0 && verifiedReviewCount > 0 && (
             <div><dt>Verified</dt><dd className="stat-ok">{verifiedReviewCount}</dd></div>
           )}
-          <div><dt>Not assessed</dt><dd>{fileCount ? unassessed : '—'}</dd></div>
+          <div><dt>Not assessed</dt><dd className="stat-neutral">{fileCount ? unassessed : '—'}</dd></div>
         </dl>
         <p className="summary-footnote">Local file checks only. Not CivCheck progress or approval.</p>
       </section>
