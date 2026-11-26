@@ -3,6 +3,7 @@ import { DEMO_RULE_PACK, type CheckSummary, type DocumentRecord, type FileKind, 
 import { FilenameValidatorEditor } from './FilenameValidatorEditor';
 import { handoffFiles } from '../lib/handoffFiles';
 import { FINDING_STATUS_META, TONE_BADGE_CLASS, type StatusTone } from '../lib/status';
+import { StatusBreakdown } from './StatusBreakdown';
 import { IconCheck, IconCopy, IconEye, IconReplace } from './Icons';
 
 export interface FindingsPanelProps {
@@ -215,6 +216,7 @@ export function FindingsPanel({
 
   const verifiedSet = new Set(verifiedIds);
   const nameRecords = handoffFiles(items.map((item) => item.record)).included;
+  const errorFileCount = items.filter(({ record }) => record.status === 'error' || record.status === 'unsupported').length;
   const openReviewCount = summary.findings.filter((finding) => finding.category === 'review' && !verifiedSet.has(finding.id)).length;
   const verifiedReviewCount = summary.reviewCount - openReviewCount;
 
@@ -319,6 +321,14 @@ export function FindingsPanel({
             <p>Sheet index · {summary.sheetIndexCoverage === 'compared' ? 'Compared'
               : summary.sheetIndexCoverage === 'partial' ? 'Partially compared' : 'Needs manual review'}</p>
           </div>
+          <StatusBreakdown
+            summary={summary}
+            fileCount={items.length}
+            working={busy}
+            errorFileCount={errorFileCount}
+            verifiedReviewCount={verifiedReviewCount}
+            resolvedFixCount={resolvedFixes.length}
+          />
           {items.some(({ record }) => record.status !== 'complete') && (
             <p className="fix-hint">Some files are still processing or could not be read. Their contents have not been assessed.</p>
           )}

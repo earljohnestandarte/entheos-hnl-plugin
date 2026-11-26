@@ -1,9 +1,11 @@
 import type { CheckSummary } from '@hnl/contracts';
+import { StatusBreakdown } from './StatusBreakdown';
 
-export function PreparationSummary({ summary, fileCount, working, verifiedReviewCount = 0, resolvedFixCount = 0, onCoverage }: {
+export function PreparationSummary({ summary, fileCount, working, errorFileCount = 0, verifiedReviewCount = 0, resolvedFixCount = 0, onCoverage }: {
   summary: CheckSummary;
   fileCount: number;
   working: boolean;
+  errorFileCount?: number;
   verifiedReviewCount?: number;
   resolvedFixCount?: number;
   onCoverage: () => void;
@@ -19,6 +21,17 @@ export function PreparationSummary({ summary, fileCount, working, verifiedReview
         <p className="summary-status">
           {working ? 'Analyzing PDFs…' : fileCount ? summary.label : 'No files added yet'}
         </p>
+        {!working && (
+          <StatusBreakdown
+            summary={summary}
+            fileCount={fileCount}
+            working={working}
+            errorFileCount={errorFileCount}
+            verifiedReviewCount={verifiedReviewCount}
+            resolvedFixCount={resolvedFixCount}
+            compact
+          />
+        )}
         {working && fileCount > 0 && (
           <div className="sidebar-progress" aria-hidden="true">
             <span style={{ transform: `scaleX(${Math.max(0.12, summary.completedCount / fileCount)})` }} />

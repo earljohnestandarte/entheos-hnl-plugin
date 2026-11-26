@@ -7,6 +7,7 @@ import { StepNavigation } from './StepNavigation';
 import { FilesPanel } from './FilesPanel';
 import { HandoffPanel } from './HandoffPanel';
 import { FindingsPanel } from './FindingsPanel';
+import { StatusBreakdown } from './StatusBreakdown';
 
 afterEach(cleanup);
 const title: DocumentRecord = { id: 'title', revision: 1, originalName: '000 - Title Sheet.pdf', exportName: '000 - Title Sheet.pdf', kind: 'plan', bytes: 100, hash: 'a'.repeat(64), status: 'complete', pages: [{ page: 1, widthInches: 36, heightInches: 24, rotation: 0, text: 'Title Sheet SHEET INDEX FAR 0.25' }] };
@@ -129,5 +130,23 @@ describe('preparation workspace', () => {
     expect(updatedCard.getByText('Verified')).toBeTruthy();
     fireEvent.click(updatedCard.getByRole('button', { name: 'Re-verify' }));
     expect(updatedCard.getByText('All covered file checks pass')).toBeTruthy();
+  });
+
+  it('shows Fixes needed, Not yet sure, Some checks failed, and Covered checks pass in StatusBreakdown', () => {
+    const { rerender } = render(
+      <StatusBreakdown summary={analyzeDocuments([bad])} fileCount={1} />,
+    );
+    expect(screen.getByText('Fixes needed')).toBeTruthy();
+
+    const cleanSummary = analyzeDocuments([title]);
+    rerender(<StatusBreakdown summary={cleanSummary} fileCount={1} />);
+    expect(screen.getByText('Not yet sure')).toBeTruthy();
+
+    const reviewIds = cleanSummary.findings.filter((finding) => finding.category === 'review').length;
+    rerender(<StatusBreakdown summary={cleanSummary} fileCount={1} verifiedReviewCount={reviewIds} />);
+    expect(screen.getByText('Covered checks pass')).toBeTruthy();
+
+    rerender(<StatusBreakdown summary={cleanSummary} fileCount={1} errorFileCount={1} />);
+    expect(screen.getByText('Some checks failed')).toBeTruthy();
   });
 });
