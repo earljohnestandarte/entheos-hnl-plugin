@@ -2,6 +2,10 @@ import { useEffect, useRef } from 'react';
 
 const HELP_STEPS = [
   {
+    title: 'Name your workspace',
+    detail: 'Enter a project name before adding files. Reopen Workspace setup to change it.',
+  },
+  {
     title: 'Add and classify your PDFs',
     detail: 'Add synthetic or approved test PDFs, or try the guided sample. Confirm drawing sheets as plans, forms as supporting documents, and checklists used for review as references.',
   },

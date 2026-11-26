@@ -41,7 +41,13 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-async function loadSample() {
+function createWorkspace(name = 'My preparation set') {
+  fireEvent.change(screen.getByRole('textbox', { name: 'Project name' }), { target: { value: name } });
+  fireEvent.click(screen.getByRole('button', { name: 'Continue to files' }));
+}
+
+async function loadSample(name?: string) {
+  createWorkspace(name);
   fireEvent.click(screen.getByRole('button', { name: 'Try the guided sample' }));
   await screen.findByText(/File analysis finished/);
 }
@@ -74,15 +80,27 @@ afterEach(() => {
 });
 
 describe('App preparation journeys', () => {
-  it('opens the file chooser controls without a setup form or generated sample', () => {
+  it('requires a project name before enabling file import or the guided sample', () => {
     render(<App />);
+    const input = screen.getByRole('textbox', { name: 'Project name' }) as HTMLInputElement;
+    const navigation = within(screen.getByRole('navigation', { name: 'Local preparation steps' }));
+    const addPlans = navigation.getByRole('button', { name: /Add plans/ }) as HTMLButtonElement;
+    expect(input.required).toBe(true);
+    expect(input.value).toBe('');
+    expect(navigation.getByRole('button', { name: /Workspace setup/ }).getAttribute('aria-current')).toBe('step');
+    expect(addPlans.disabled).toBe(true);
+    fireEvent.click(addPlans);
+    createWorkspace('   ');
+    expect(screen.getByRole('alert').textContent).toBe('Enter a project name.');
+    expect(screen.queryByRole('button', { name: 'Choose PDF files' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Try the guided sample' })).toBeNull();
+    createWorkspace('Site plan review');
+    expect(screen.getByText('Site plan review')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Choose PDF files' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Choose folder' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Try the guided sample' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Name set' })).toBeTruthy();
-    expect(screen.queryByRole('textbox', { name: 'Preparation set name' })).toBeNull();
     expect(screen.queryByRole('article')).toBeNull();
-    const navigation = within(screen.getByRole('navigation', { name: 'Local preparation steps' }));
+    expect(addPlans.disabled).toBe(false);
     expect((navigation.getByRole('button', { name: /Fix & review/ }) as HTMLButtonElement).disabled).toBe(true);
     expect((navigation.getByRole('button', { name: /Prepare for CivCheck/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(createDemoFiles).not.toHaveBeenCalled();
@@ -91,13 +109,8 @@ describe('App preparation journeys', () => {
 
   it('accepts a name before import and preserves it through handoff', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: 'Name set' }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Preparation set name' }), {
-      target: { value: '  Integration set  ' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Save name' }));
+    await loadSample('  Integration set  ');
     expect(screen.getByText('Integration set')).toBeTruthy();
-    await loadSample();
     expectFiles();
     expect(readPdf).toHaveBeenCalledTimes(3);
     expect(screen.getByLabelText('Guided sample checklist')).toBeTruthy();
@@ -156,13 +169,13 @@ describe('App preparation journeys', () => {
     render(<App />);
     await loadSample();
     fireEvent.change(screen.getByLabelText(`File type for ${supportingName}`), { target: { value: 'plan' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Rename set' }));
-    fireEvent.change(screen.getByLabelText('Preparation set name'), { target: { value: '  Renamed preparation  ' } });
+    navigate(/Workspace setup/);
+    fireEvent.change(screen.getByLabelText('Project name'), { target: { value: '  Renamed preparation  ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save name' }));
     expect(screen.getByText('Renamed preparation')).toBeTruthy();
     expectFiles();
-    fireEvent.click(screen.getByRole('button', { name: 'Rename set' }));
-    expect((screen.getByLabelText('Preparation set name') as HTMLInputElement).value).toBe('Renamed preparation');
+    navigate(/Workspace setup/);
+    expect((screen.getByLabelText('Project name') as HTMLInputElement).value).toBe('Renamed preparation');
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expectFiles();
     expect((screen.getByLabelText(`File type for ${supportingName}`) as HTMLSelectElement).value).toBe('plan');
@@ -181,7 +194,8 @@ describe('App preparation journeys', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start a new preparation set' }));
     fireEvent.click(screen.getByRole('button', { name: 'Clear and start again' }));
     expect(screen.queryByRole('article')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Choose PDF files' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Choose PDF files' })).toBeNull();
+    expect((screen.getByRole('textbox', { name: 'Project name' }) as HTMLInputElement).value).toBe('');
     await loadSample();
     expectFiles();
     expect(createDemoFiles).toHaveBeenCalledTimes(2);
@@ -192,6 +206,7 @@ describe('App preparation journeys', () => {
     const parsing = deferred<Awaited<ReturnType<typeof readPdf>>>();
     vi.mocked(readPdf).mockReturnValueOnce(parsing.promise);
     render(<App />);
+    createWorkspace();
     fireEvent.click(screen.getByRole('button', { name: /Try the guided sample/ }));
     await waitFor(() => expect(readPdf).toHaveBeenCalledTimes(1));
     expect(screen.getByRole('navigation', { name: 'Local preparation steps' })).toBeTruthy();
@@ -213,10 +228,10 @@ describe('App preparation journeys', () => {
     await waitFor(() => expect(readPdf).toHaveBeenCalledTimes(4));
     expectFiles();
     expect(within(screen.getByRole('article', { name: floorName })).getByText(/Checking replacement/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Rename set' }));
+    navigate(/Workspace setup/);
     await act(async () => { parsing.resolve(metadata(correctedName)); });
     await waitFor(() => expect((screen.getByRole('button', { name: 'Save name' }) as HTMLButtonElement).disabled).toBe(false));
-    expect((screen.getByLabelText('Preparation set name') as HTMLInputElement).value).toBe('My preparation set');
+    expect((screen.getByLabelText('Project name') as HTMLInputElement).value).toBe('My preparation set');
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expectFiles([titleName, correctedName, supportingName]);
     expect(within(screen.getByRole('article', { name: correctedName })).getByText(/36\.0 × 24\.0 in.*Revision 2/)).toBeTruthy();
@@ -235,12 +250,13 @@ describe('App preparation journeys', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start a new preparation set' }));
     fireEvent.click(screen.getByRole('button', { name: 'Clear and start again' }));
     expect(signal.aborted).toBe(true);
+    createWorkspace('Fresh workspace');
     const freshName = 'A201 - New Plan.pdf';
     fireEvent.change(screen.getByLabelText('Add test PDFs'), { target: { files: [pdf(freshName)] } });
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('File analysis finished'));
     await act(async () => { parsing.resolve(metadata(correctedName)); });
     expectFiles([freshName]);
-    expect(screen.getByText('My preparation set')).toBeTruthy();
+    expect(screen.getByText('Fresh workspace')).toBeTruthy();
     expect(screen.queryByText(/Replacement analyzed/)).toBeNull();
     expect((screen.getByRole('button', { name: 'Choose PDF files' }) as HTMLButtonElement).disabled).toBe(false);
     expect(createDemoFiles).toHaveBeenCalledTimes(1);
@@ -251,6 +267,7 @@ describe('App preparation journeys', () => {
     const generation = deferred<File[]>();
     vi.mocked(createDemoFiles).mockReturnValueOnce(generation.promise);
     render(<App />);
+    createWorkspace();
     const start = screen.getByRole('button', { name: /Try the guided sample/ });
     fireEvent.click(start);
     fireEvent.click(start);

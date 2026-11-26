@@ -1,13 +1,15 @@
-export type WorkspaceStep = 'files' | 'findings' | 'handoff';
+export type WorkspaceStep = 'setup' | 'files' | 'findings' | 'handoff';
 
 const STEPS = [
+  { id: 'setup', label: 'Workspace setup', detail: 'Project name' },
   { id: 'files', label: 'Add plans', detail: 'Files & types' },
   { id: 'findings', label: 'Fix & review', detail: 'Checks & values' },
   { id: 'handoff', label: 'Prepare for CivCheck', detail: 'Export package' },
 ] as const;
 
-export function StepNavigation({ current, hasFiles, fixCount, classificationPendingCount, onNavigate }: {
-  current: WorkspaceStep; hasFiles: boolean; fixCount: number; classificationPendingCount: number; onNavigate: (step: WorkspaceStep) => void;
+export function StepNavigation({ current, hasWorkspace, hasFiles, fixCount, classificationPendingCount, onNavigate }: {
+  current: WorkspaceStep; hasWorkspace: boolean; hasFiles: boolean; fixCount: number;
+  classificationPendingCount: number; onNavigate: (step: WorkspaceStep) => void;
 }) {
   return (
     <nav className="step-navigation" aria-label="Local preparation steps">
@@ -21,7 +23,7 @@ export function StepNavigation({ current, hasFiles, fixCount, classificationPend
                 type="button"
                 className={`step-button ${isCurrent ? 'is-active' : ''}`}
                 aria-current={isCurrent ? 'step' : undefined}
-                disabled={!hasFiles && (step.id === 'findings' || step.id === 'handoff')}
+                disabled={step.id !== 'setup' && (!hasWorkspace || (step.id !== 'files' && !hasFiles))}
                 onClick={() => onNavigate(step.id)}
               >
                 <span className="step-badge" aria-hidden="true">

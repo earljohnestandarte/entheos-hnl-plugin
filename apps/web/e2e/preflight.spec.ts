@@ -9,12 +9,18 @@ import { permitFixture, testPdf } from './fixtures';
 
 async function start(page: Page, sample = false) {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Choose PDF files' })).toBeEnabled();
+  await nameWorkspace(page, 'Browser acceptance');
   if (sample) {
     await page.getByRole('button', { name: 'Try the guided sample' }).click();
     await expect(page.getByText(/File analysis finished/)).toBeVisible();
   }
   await expect(page.getByRole('navigation', { name: 'Local preparation steps' })).toBeVisible();
+}
+
+async function nameWorkspace(page: Page, name: string) {
+  await page.getByRole('textbox', { name: 'Project name' }).fill(name);
+  await page.getByRole('button', { name: 'Continue to files' }).click();
+  await expect(page.getByRole('button', { name: 'Choose PDF files' })).toBeEnabled();
 }
 
 function step(page: Page, name: RegExp) {
@@ -138,22 +144,27 @@ test('flags combined drawings and preserves reference and replacement decisions 
 });
 
 test('uses the chooser and folder inputs, replaces a PDF, and preserves bytes in the browser ZIP', async ({ page }, info) => {
-  await start(page);
+  await page.goto('/');
   const viewport = page.viewportSize()!;
-  await expect(page.getByRole('heading', { name: 'Files', exact: true })).not.toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Workspace setup' })).not.toBeFocused();
+  await expect(step(page, /Workspace setup/)).toHaveAttribute('aria-current', 'step');
+  await expect(step(page, /Add plans/)).toBeDisabled();
   await expect(page.getByLabel(/file fixes open/)).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Continue to files' }).click();
+  await expect(page.getByRole('textbox', { name: 'Project name' })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Try the guided sample' })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: info.outputPath('mobile-workspace-setup.png') });
+  const projectName = 'Permit PDF rehearsal';
+  await nameWorkspace(page, projectName);
+  await expect(page.getByText(projectName, { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Choose folder' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Try the guided sample' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: info.outputPath('mobile-files.png') });
   await page.setViewportSize(viewport);
   await page.screenshot({ path: info.outputPath('desktop-files.png') });
-  const projectName = 'Permit PDF rehearsal';
-  await page.getByRole('button', { name: 'Name set', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Preparation set name' }).fill(projectName);
-  await page.getByRole('button', { name: 'Save name' }).click();
-  await expect(page.getByText(projectName, { exact: true })).toBeVisible();
   const [title, floor, ...rest] = await permitFixture();
   const folder = info.outputPath('test-input');
   await mkdir(folder, { recursive: true });

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FindingCategory } from '@hnl/contracts';
-import { DEFAULT_PROJECT_NAME, usePreparationSession } from './hooks/usePreparationSession';
+import { usePreparationSession } from './hooks/usePreparationSession';
 import { StepNavigation, type WorkspaceStep } from './components/StepNavigation';
 import { PreparationSummary } from './components/PreparationSummary';
 import { FilesPanel } from './components/FilesPanel';
@@ -9,10 +9,8 @@ import { HandoffPanel } from './components/HandoffPanel';
 import { HelpDialog } from './components/HelpDialog';
 import { PdfPreview } from './components/PdfPreview';
 
-type WorkspaceView = WorkspaceStep | 'setup';
-
-const stepCopy: Record<WorkspaceView, { title: string; detail?: string }> = {
-  setup: { title: 'Preparation set' },
+const stepCopy: Record<WorkspaceStep, { title: string; detail?: string }> = {
+  setup: { title: 'Workspace setup' },
   files: { title: 'Files', detail: 'Check exported drawing sheets and supporting documents before CivCheck.' },
   findings: { title: 'Findings', detail: 'File issues first. Manual checks remain separate.' },
   handoff: { title: 'CivCheck handoff', detail: 'Practice file order, document assignments, and evidence review.' },
@@ -20,22 +18,21 @@ const stepCopy: Record<WorkspaceView, { title: string; detail?: string }> = {
 
 export default function App() {
   const session = usePreparationSession();
-  const [step, setStep] = useState<WorkspaceView>('files');
+  const [step, setStep] = useState<WorkspaceStep>('setup');
+  const [hasWorkspace, setHasWorkspace] = useState(false);
   const [help, setHelp] = useState(false);
   const [clearConfirm, setClearConfirm] = useState(false);
   const [workspaceVersion, setWorkspaceVersion] = useState(0);
   const [preview, setPreview] = useState<{ id: string; page: number } | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [findingFilter, setFindingFilter] = useState<FindingCategory | 'all'>('all');
-  const [setupName, setSetupName] = useState(session.projectName);
+  const [setupName, setSetupName] = useState('');
   const [setupError, setSetupError] = useState('');
   const heading = useRef<HTMLHeadingElement>(null);
   const previousView = useRef({ step, workspaceVersion });
   const renameReturnStep = useRef<WorkspaceStep>('files');
   const selected = session.items.find((item) => item.record.id === preview?.id);
   const hasFiles = session.items.length > 0;
-  const showSetName = hasFiles || session.projectName !== DEFAULT_PROJECT_NAME;
-  const canReset = showSetName || session.working || !!session.removedName;
 
   useEffect(() => {
     if (previousView.current.step === step && previousView.current.workspaceVersion === workspaceVersion) return;
@@ -43,12 +40,13 @@ export default function App() {
     heading.current?.focus();
   }, [step, workspaceVersion]);
 
-  function openRename() {
-    if (step === 'setup') return;
-    renameReturnStep.current = step;
-    setSetupName(showSetName ? session.projectName : '');
-    setSetupError('');
-    setStep('setup');
+  function navigate(next: WorkspaceStep) {
+    if (next === 'setup' && step !== 'setup') {
+      renameReturnStep.current = step;
+      setSetupName(session.projectName);
+      setSetupError('');
+    }
+    setStep(next);
   }
 
   function editFile(id: string) {
@@ -64,7 +62,9 @@ export default function App() {
   function reset() {
     session.clear();
     setWorkspaceVersion((version) => version + 1);
-    setStep('files');
+    setStep('setup');
+    setHasWorkspace(false);
+    setSetupName('');
     setSetupError('');
     setClearConfirm(false);
     setPreview(null);
@@ -81,40 +81,37 @@ export default function App() {
     <main id="main" className="app-main">
         <div className="page-heading">
           <div>
-            {(showSetName || step !== 'setup') && (
-              <div className="page-context">
-                {showSetName && <span>{session.projectName}</span>}
-                {step !== 'setup' && (
-                  <button type="button" className="button ghost sm" onClick={openRename}>
-                    {showSetName ? 'Rename set' : 'Name set'}
-                  </button>
-                )}
-              </div>
-            )}
+            {hasWorkspace && <p className="page-context">{session.projectName}</p>}
             <h1 ref={heading} tabIndex={-1}>{stepCopy[step].title}</h1>
             {stepCopy[step].detail && <p>{stepCopy[step].detail}</p>}
           </div>
         </div>
-        {step !== 'setup' && <StepNavigation current={step} hasFiles={hasFiles} fixCount={session.summary.fixCount}
-          classificationPendingCount={session.summary.classificationPendingCount} onNavigate={setStep} />}
+        <StepNavigation current={step} hasWorkspace={hasWorkspace} hasFiles={hasFiles} fixCount={session.summary.fixCount}
+          classificationPendingCount={session.summary.classificationPendingCount} onNavigate={navigate} />
         {session.error && <div className="alert error" role="alert">{session.error}</div>}
         {session.notice && <div className="alert success" role="status">{session.notice}</div>}
         <div className={hasFiles ? 'content-grid' : undefined}><div className="main-column">
           {step === 'setup' && (
-            <section className="panel surface-card">
-              <form className="setup-workspace" onSubmit={(event) => {
+            <section className="panel surface-card setup-workspace">
+              <form onSubmit={(event) => {
                 event.preventDefault();
                 const name = setupName.trim();
-                if (!name) { setSetupError('Give your preparation set a name.'); return; }
+                if (session.busy) return;
+                if (!name) { setSetupError('Enter a project name.'); return; }
                 session.setProjectName(name);
-                setStep(renameReturnStep.current);
+                setStep(hasWorkspace ? renameReturnStep.current : 'files');
+                setHasWorkspace(true);
               }}>
-                <label className="field-label" htmlFor="workspace-name">Preparation set name</label>
-                <input id="workspace-name" maxLength={100} value={setupName} disabled={session.busy} onChange={(event) => setSetupName(event.target.value)} />
-                {setupError && <p role="alert" className="error-text">{setupError}</p>}
+                <label className="field-label" htmlFor="workspace-name">Project name</label>
+                <input id="workspace-name" required maxLength={100} value={setupName} disabled={session.busy}
+                  aria-invalid={!!setupError} aria-describedby={setupError ? 'workspace-name-error' : undefined}
+                  onChange={(event) => { setSetupName(event.target.value); setSetupError(''); }} />
+                {setupError && <p id="workspace-name-error" role="alert" className="error-text">{setupError}</p>}
                 <div className="action-row">
-                  <button type="submit" className="button primary" disabled={session.busy}>Save name</button>
-                  <button type="button" className="button secondary" onClick={() => setStep(renameReturnStep.current)}>Cancel</button>
+                  <button type="submit" className="button primary" disabled={session.busy}>
+                    {hasWorkspace ? 'Save name' : 'Continue to files'}
+                  </button>
+                  {hasWorkspace && <button type="button" className="button secondary" onClick={() => setStep(renameReturnStep.current)}>Cancel</button>}
                 </div>
               </form>
             </section>
@@ -134,7 +131,7 @@ export default function App() {
           {step === 'handoff' && <HandoffPanel items={session.items} summary={session.summary} busy={session.busy} exporting={session.exporting}
             onExport={() => { void session.exportPackage(); }} onBack={() => { setFindingFilter('all'); setStep('findings'); }}
             onFiles={() => setStep('files')} onPreview={(id, page) => setPreview({ id, page })} />}
-          {canReset && <div className="workspace-reset">{clearConfirm ? <div className="notice reset-confirm"><strong>Clear this workspace and start again?</strong><p>All files and findings in this session will be removed. Originals and downloads stay unchanged.</p><div className="action-row reset-actions"><button className="button secondary danger-outline" disabled={session.exporting} onClick={reset}>Clear and start again</button><button className="button primary" onClick={() => setClearConfirm(false)}>Keep working</button></div></div> : <button className="button ghost sm" disabled={session.exporting} onClick={() => setClearConfirm(true)}>Start a new preparation set</button>}</div>}
+          {hasWorkspace && <div className="workspace-reset">{clearConfirm ? <div className="notice reset-confirm"><strong>Clear this workspace and start again?</strong><p>All files and findings in this session will be removed. Originals and downloads stay unchanged.</p><div className="action-row reset-actions"><button className="button secondary danger-outline" disabled={session.exporting} onClick={reset}>Clear and start again</button><button className="button primary" onClick={() => setClearConfirm(false)}>Keep working</button></div></div> : <button className="button ghost sm" disabled={session.exporting} onClick={() => setClearConfirm(true)}>Start a new preparation set</button>}</div>}
         </div>{hasFiles && <PreparationSummary summary={session.summary} fileCount={session.items.length} working={session.working} onCoverage={() => { setFindingFilter('not-assessed'); setStep('findings'); }} />}</div>
       <footer className="footer"><span><a href="https://entheosit.com/" target="_blank" rel="noreferrer">EntheosIT</a> Preflight, local browser preparation</span><span>© 2026 Entheos Inc. Not affiliated with Honolulu DPP or Clariti.</span></footer>
     </main>

@@ -49,7 +49,7 @@ describe('preparation workspace', () => {
 
   it('labels steps as local and does not allow empty findings/handoff navigation', () => {
     const navigate = vi.fn();
-    render(<StepNavigation current="files" hasFiles={false} fixCount={0} classificationPendingCount={0} onNavigate={navigate} />);
+    render(<StepNavigation current="files" hasWorkspace hasFiles={false} fixCount={0} classificationPendingCount={0} onNavigate={navigate} />);
     expect(screen.getByRole('navigation', { name: 'Local preparation steps' })).toBeTruthy();
     expect((screen.getByRole('button', { name: /Fix & review/ }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: /Add plans/ }));

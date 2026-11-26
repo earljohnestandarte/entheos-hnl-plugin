@@ -77,7 +77,7 @@ export interface PreparationSession {
   omitReference: (id: string) => void;
 }
 
-export const DEFAULT_PROJECT_NAME = 'My preparation set';
+const DEFAULT_PROJECT_NAME = 'My preparation set';
 
 export function usePreparationSession(): PreparationSession {
   const [items, setItems] = useState<Item[]>([]);

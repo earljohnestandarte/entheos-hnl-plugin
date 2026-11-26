@@ -18,7 +18,7 @@
 
 | Area | Current capability and boundary |
 | --- | --- |
-| Starting point | Open directly on **Add plans** with an optional set name, file and folder pickers, a drop area, and a guided sample. Test-only guidance appears by the import controls. |
+| Starting point | Require a project name in **Workspace setup**. **Add plans** offers file and folder selection, drag-and-drop, and the guided sample. |
 | Workspace | Choose or drop test PDFs, confirm plan/supporting/reference roles, rename the set, reopen help, or reset with confirmation |
 | Samples | Generate three local PDFs: title sheet, bad-name/portrait floor plan, and three-page supporting form; generate a corrected plan replacement |
 | Analysis | PDF.js worker extracts page count, dimensions/rotation and text; unsupported/error states remain visible |
@@ -37,14 +37,14 @@ Demo rule pack 0.4.0 reports partial drawing-index coverage, links findings to t
 
 ## 3. Try the correction path
 
-1. On **Add plans**, choose or drop approved test PDFs, select a folder, or choose **Try the guided sample**. Check the file roles and resolve any pending classification.
+1. Name the project in **Workspace setup** and select **Continue to files**. Choose or drop approved test PDFs, select a folder, or try the guided sample. Check the file roles and resolve pending classification.
 2. For `A101 & Floor Plan.pdf`, select **Review filename**, inspect the proposal and **Accept name**; try **Undo rename**.
 3. Open **View PDF**, inspect the portrait page, and zoom or search for an entry in the extracted text. Review the file and set findings, including index coverage.
 4. Select **Use corrected sample PDF** (or **Replace** with a safe test PDF). Confirm the new revision and recalculated findings.
 5. Revisit manual reviews and not-assessed items. Fixing the sample's filename/orientation does not establish compliance.
 6. Open **Prepare for CivCheck**, review the open work, and copy or download the checklist. Download and inspect the ZIP. **How it works** opens help without clearing data. **Start a new preparation set** requires confirmation before clearing it.
 
-The local workflow is **Add plans → Fix & review → Prepare for CivCheck**. The guided checklist continues to show manual reviews after format fixes are resolved.
+The local workflow is **Workspace setup → Add plans → Fix & review → Prepare for CivCheck**. The guided checklist continues to show manual reviews after format fixes are resolved.
 
 This path is narrower than the original full demonstration: it has no scope questions, value/evidence confirmations, saved-state reload or backup restore.
 
@@ -82,7 +82,7 @@ Export pack 2.0.0 uses manifest schema 3. The manifest records roles, omitted re
 
 | Evidence | Status |
 | --- | --- |
-| Typecheck, unit, and component tests | TypeScript, the production build, and 252 Vitest tests passed after removing the separate entry screen. |
+| Typecheck, unit, and component tests | TypeScript, the production build, and 252 Vitest tests passed, including required project naming and workspace reset. |
 | Production browser acceptance | Four Playwright acceptance tests passed in each of Chrome and Edge. They cover both entry paths, file and folder selection, drag-and-drop, replacement and undo, clipboard fallback, ZIP separation and byte verification, and malformed, scanned, and password-protected PDFs. |
 | Keyboard and responsive checks | The browser suite checks Help and evidence focus return after Escape, Findings tab keys, and handoff overflow at 390 px. Screen-reader and full WCAG acceptance remain open. |
 | App performance | The six post-change Edge runs met the 60-second analysis target for the 12-file synthetic fixture. Larger workloads, process memory, and real-sample accuracy remain open. |
