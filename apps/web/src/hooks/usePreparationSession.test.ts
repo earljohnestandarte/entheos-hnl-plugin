@@ -173,7 +173,7 @@ describe('usePreparationSession', () => {
     expect(result.current.error).toContain('Replacement exceeds');
     expect(result.current.items[0].record.revision).toBe(1);
     await act(async () => { await result.current.replaceFile(id, pdf('A103.pdf')); });
-    expect(result.current.items[0]).toMatchObject({ demo: true, record: { id, revision: 2, originalName: 'A103.pdf', exportName: 'A103.pdf', status: 'complete' } });
+    expect(result.current.items[0]).toMatchObject({ demo: true, syntheticSample: false, record: { id, revision: 2, originalName: 'A103.pdf', exportName: 'A103.pdf', status: 'complete' } });
     expect(result.current.error).toBe('');
     expect(result.current.notice).toContain('Replacement analyzed');
   });
@@ -254,7 +254,7 @@ describe('usePreparationSession', () => {
     expect(result.current.items[0].record.kind).toBe('plan');
     expect(result.current.exporting).toBe(true);
     await act(async () => { exporting.resolve(new Uint8Array([4])); await download; });
-    expect(downloadBytes).toHaveBeenCalledWith(new Uint8Array([4]), 'HNL-prescreen-package.zip', 'application/zip');
+    expect(downloadBytes).toHaveBeenCalledWith(new Uint8Array([4]), 'HNL-preflight-test-only.zip', 'application/zip');
     expect(result.current.notice).toContain('Package downloaded');
     expect(result.current.busy).toBe(false);
   });

@@ -143,8 +143,8 @@ export function FilesPanel(props: Props) {
         >
           <div className="drop-zone-lead">
             <div>
-              <h3>{items.length ? 'Add PDFs or a project folder' : 'Add your project PDFs or folder'}</h3>
-              <p>PDFs only, up to 20 files, 25 MB per file (100 MB total). Originals remain untouched.</p>
+              <h3>Add test PDFs or a folder</h3>
+              <p>Use synthetic or approved test PDFs. Up to 20 files, 25 MB per file (100 MB total).</p>
             </div>
           </div>
           <div className="drop-zone-actions">
@@ -157,8 +157,8 @@ export function FilesPanel(props: Props) {
           </div>
         </div>
 
-        <input hidden type="file" ref={picker} multiple accept=".pdf,application/pdf" aria-label="Add project PDFs" onChange={(event) => { addFilteredFromBatch(Array.from(event.target.files ?? []), false); event.target.value = ''; }} />
-        <input hidden type="file" ref={folderPicker} multiple aria-label="Add project folder" onChange={(event) => { addFilteredFromBatch(Array.from(event.target.files ?? []), true); event.target.value = ''; }} />
+        <input hidden type="file" ref={picker} multiple accept=".pdf,application/pdf" aria-label="Add test PDFs" onChange={(event) => { addFilteredFromBatch(Array.from(event.target.files ?? []), false); event.target.value = ''; }} />
+        <input hidden type="file" ref={folderPicker} multiple aria-label="Add test folder" onChange={(event) => { addFilteredFromBatch(Array.from(event.target.files ?? []), true); event.target.value = ''; }} />
         <input hidden type="file" ref={replacement} accept=".pdf,application/pdf" aria-label="Replacement PDF" onChange={(event) => { const file = event.target.files?.[0]; if (file && replaceId.current) props.onReplace(replaceId.current, file); event.target.value = ''; }} />
 
         {skippedNotice && <p className="field-hint" role="status">{skippedNotice}</p>}
@@ -168,11 +168,11 @@ export function FilesPanel(props: Props) {
 
         {!items.length && (
           <div className="empty-state">
-            <h3>No project PDFs added yet</h3>
-            <p>Add permit plan sheets or an exported project folder to inspect dimensions, filenames, and extracted project values.</p>
+            <h3>No test PDFs added yet</h3>
+            <p>Add test plan sheets or a test folder to inspect filenames, dimensions, and extracted values.</p>
             <div className="action-row">
               <button type="button" className="button primary" disabled={busy} onClick={() => picker.current?.click()}>
-                Add project PDFs
+                Add test PDFs
               </button>
             </div>
           </div>

@@ -27,7 +27,7 @@ function titleBlock(page: PDFPage, font: PDFFont, bold: PDFFont, sheet: string, 
     borderWidth: 2, borderColor: ink,
   });
   text(page, bold, `${sheet} | ${title} | SYNTHETIC PROJECT`, 100, 252, 30);
-  text(page, font, 'Project address: 123 Example Lane (SYNTHETIC)', 100, 208);
+  text(page, font, 'Project address: 123 Example Lane, Honolulu, HI (SYNTHETIC)', 100, 208);
   text(page, font, 'Owner: Example Owner | TMK: DEMO-ONLY', 100, 170);
   text(page, font, 'Project description: Imaginary floor plan for a local software demonstration.', 100, 132, 22);
   text(page, font, SYNTHETIC, 100, 94, 20);
@@ -41,8 +41,8 @@ async function fileFromPdf(pdf: PDFDocument, name: string): Promise<File> {
 async function titleSheet(): Promise<File> {
   const { pdf, font, bold } = await newDemo('Title Sheet');
   const page = pdf.addPage([36 * INCH, 24 * INCH]);
-  text(page, bold, 'SYNTHETIC DEMONSTRATION', 100, page.getHeight() - 130, 42);
-  text(page, font, 'An invented project, not a real address or an official application.', 100, page.getHeight() - 185, 26);
+  text(page, bold, 'Title Sheet', 100, page.getHeight() - 130, 42);
+  text(page, font, 'SYNTHETIC DEMONSTRATION - An invented project for local practice.', 100, page.getHeight() - 185, 26);
   text(page, bold, 'SHEET INDEX', 100, 1330, 36);
   text(page, font, '000 - Title Sheet', 100, 1270, 28);
   text(page, font, 'A101 - Floor Plan (illustrative only)', 100, 1220, 28);

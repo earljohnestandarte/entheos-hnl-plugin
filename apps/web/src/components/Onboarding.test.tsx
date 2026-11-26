@@ -40,12 +40,12 @@ describe('onboarding', () => {
   it('retains name, path, and acknowledgment when going back', () => {
     const start = mount();
     fireEvent.click(screen.getByRole('button', { name: /Get started/ }));
-    fireEvent.click(screen.getByRole('radio', { name: /Use my project PDFs/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /Use my test PDFs/ }));
     fireEvent.click(screen.getByRole('button', { name: /Continue/ }));
     fireEvent.change(screen.getByLabelText('Preparation set name'), { target: { value: 'My exports' } });
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect((screen.getByRole('radio', { name: /Use my project PDFs/ }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('radio', { name: /Use my test PDFs/ }) as HTMLInputElement).checked).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: /Continue/ }));
     expect((screen.getByLabelText('Preparation set name') as HTMLInputElement).value).toBe('My exports');
     expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(true);

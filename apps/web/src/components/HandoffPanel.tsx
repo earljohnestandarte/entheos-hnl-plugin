@@ -1,4 +1,6 @@
 import type { CheckSummary, DocumentRecord } from '@hnl/contracts';
+import { exportNameBlockers } from '../lib/exportNames';
+import { CivCheckChecklist } from './CivCheckChecklist';
 import { IconDownload } from './Icons';
 
 export interface HandoffPanelProps {
@@ -8,6 +10,7 @@ export interface HandoffPanelProps {
   busy: boolean;
   onExport: () => void;
   onBack: () => void;
+  onPreview: (fileId: string, page: number) => void;
 }
 
 export function HandoffPanel({
@@ -17,19 +20,22 @@ export function HandoffPanel({
   busy,
   onExport,
   onBack,
+  onPreview,
 }: HandoffPanelProps) {
+  const records = items.map(({ record }) => record);
   const planCount = items.filter(({ record }) => record.kind === 'plan').length;
   const supportingCount = items.filter(({ record }) => record.kind === 'supporting').length;
   const incompleteCount = items.filter(({ record }) => record.status !== 'complete').length;
-  const canExport = items.length > 0 && incompleteCount === 0 && !busy && !exporting;
+  const nameBlockers = exportNameBlockers(records);
+  const canExport = items.length > 0 && incompleteCount === 0 && !busy && !exporting && nameBlockers.length === 0;
   const notAssessedCount = summary.findings.filter((finding) => finding.category === 'not-assessed').length;
-  const isReadyPeak = items.length > 0 && incompleteCount === 0 && summary.formatChecksComplete;
+  const isReadyPeak = items.length > 0 && incompleteCount === 0 && summary.formatChecksComplete && nameBlockers.length === 0;
 
   return (
     <section className="panel surface-card" aria-label="CivCheck handoff">
       <div className="panel-heading">
         <div>
-          <h2>Download package</h2>
+          <h2>Prepare the test handoff</h2>
         </div>
         <span className="panel-meta">
           {items.length} {items.length === 1 ? 'source file' : 'source files'}
@@ -48,8 +54,10 @@ export function HandoffPanel({
           {summary.fixCount} unresolved {summary.fixCount === 1 ? 'fix' : 'fixes'}, {summary.reviewCount} manual{' '}
           {summary.reviewCount === 1 ? 'review' : 'reviews'}, and {notAssessedCount} not assessed remain in the reference report. Even completed file checks do not establish that your set is complete or ready to submit.
         </p>
-        <p className="muted">Local rules are based on published DPP walkthrough documentation; confirm current requirements in CivCheck.</p>
+        <p className="muted">Use synthetic or approved test PDFs only. Downloads are unencrypted copies.</p>
       </div>
+
+      {items.length > 0 && <CivCheckChecklist records={records} summary={summary} onPreview={onPreview} />}
 
       <div className="package-grid">
         <article className="package-card">
@@ -76,30 +84,9 @@ export function HandoffPanel({
             <li><strong>manifest.json</strong>: file map, revisions, and hashes</li>
             <li><strong>readiness.pdf</strong>: preparation reference, not a readiness certificate</li>
           </ul>
-          <p className="muted">Do not upload these reports to CivCheck. They do not replace required forms, professional review, or portal checks.</p>
+          <p className="muted">Do not upload these reports or any test PDF to CivCheck.</p>
         </article>
       </div>
-
-      <h3 className="panel-intro">Your next steps in CivCheck</h3>
-      <p className="muted">Extract and review the ZIP locally first. This tool does not upload files or import the ZIP into CivCheck.</p>
-      <ol className="journey-list">
-        <li>
-          <strong>Upload and classify your source files</strong>
-          <p>Upload only the intended individual PDFs from upload/. Inspect processing results and confirm each Plan or Other classification in CivCheck’s Files panel.</p>
-        </li>
-        <li>
-          <strong>Assign the required documents</strong>
-          <p>In Document review, review suggestions and select the appropriate files and page ranges. This tool does not determine completeness or make those assignments.</p>
-        </li>
-        <li>
-          <strong>Confirm evidence, highlights, and answers</strong>
-          <p>In Intake review, verify drawing evidence, apply or dismiss highlights, and answer attestations yourself. Title blocks, sheet indexes, and stamp space still need human review.</p>
-        </li>
-        <li>
-          <strong>Complete CivCheck’s own review</strong>
-          <p>Complete Plan review questions and follow-up. This package creates no CivCheck ID, certificate, watermarked plans, or pass result.</p>
-        </li>
-      </ol>
 
       {!items.length && (
         <div className="empty-state">
@@ -112,6 +99,12 @@ export function HandoffPanel({
           {incompleteCount} {incompleteCount === 1 ? 'file is' : 'files are'} still processing or could not be assessed.
           {' '}Wait for analysis, or replace or remove unreadable files in Add plans. No source is silently omitted.
         </p>
+      )}
+      {nameBlockers.length > 0 && (
+        <div className="notice" role="status">
+          <strong>Fix export names in Add plans</strong>
+          <ul>{nameBlockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul>
+        </div>
       )}
 
       <div className="export-callout">

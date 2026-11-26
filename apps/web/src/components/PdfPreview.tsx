@@ -29,14 +29,19 @@ export function PdfPreview({ record, file, initialPage, onClose }: { record: Doc
     return () => controller.abort();
   }, [file, page]);
 
+  function close() {
+    dialog.current?.close();
+    onClose();
+  }
+
   return (
-    <dialog ref={dialog} onCancel={onClose} className="preview-dialog" aria-labelledby="preview-title">
+    <dialog ref={dialog} onCancel={(event) => { event.preventDefault(); close(); }} className="preview-dialog" aria-labelledby="preview-title">
       <div className="dialog-top">
         <div>
           <h2 id="preview-title">{record.exportName}</h2>
           <p className="muted small">Source document, revision {record.revision}</p>
         </div>
-        <button type="button" onClick={onClose} aria-label="Close PDF preview" className="icon-button">×</button>
+        <button type="button" onClick={close} aria-label="Close PDF preview" className="icon-button">×</button>
       </div>
       <div className="preview-tools">
         <div className="preview-pager">

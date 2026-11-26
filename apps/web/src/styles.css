@@ -758,7 +758,7 @@ small, .small { font-size: 12px; line-height: 1.45; }
 .value-label { font-size: 12px; font-weight: 500; color: var(--muted); }
 .value-text { font-size: 14px; font-weight: 500; margin: 0; overflow-wrap: anywhere; color: var(--ink); font-variant-numeric: tabular-nums; }
 .value-source { display: flex; flex-direction: column; gap: 4px; margin-top: auto; padding-top: 8px; }
-.value-source > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.value-source > span { overflow-wrap: anywhere; }
 .value-source .action-row { justify-content: space-between; gap: 8px; }
 
 /* Icon swap (copy -> check) */
@@ -776,7 +776,7 @@ small, .small { font-size: 12px; line-height: 1.45; }
 .assignment-grid { border-top: 1px solid var(--line); }
 .assignment-row { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 12px; padding: 10px 6px; border-bottom: 1px solid var(--line); font-size: 13px; transition: background-color 140ms ease; }
 .assignment-row strong { font-weight: 500; color: var(--ink); }
-.assignment-files { color: var(--ink); overflow-wrap: anywhere; }
+.assignment-files { margin: 0; padding-left: 18px; color: var(--ink); overflow-wrap: anywhere; }
 
 .checklist-controls { margin-bottom: 12px; max-width: 320px; }
 .checklist-list { border-bottom: 1px solid var(--line); }
@@ -826,9 +826,11 @@ small, .small { font-size: 12px; line-height: 1.45; }
 .package-card strong { font-weight: 500; color: var(--ink); }
 
 .journey-list { list-style: decimal; padding-left: 20px; margin: 16px 0 24px; }
-.journey-list li { padding-left: 6px; margin-bottom: 12px; color: var(--secondary); font-size: 13px; }
+.journey-list > li { padding-left: 6px; margin-bottom: 16px; color: var(--secondary); font-size: 13px; }
 .journey-list strong { font-size: 14px; color: var(--ink); font-weight: 500; }
 .journey-list p { margin: 4px 0 0; font-size: 13px; }
+.journey-list ul, .journey-list ol { margin: 6px 0; padding-left: 20px; overflow-wrap: anywhere; }
+.journey-list li li { margin: 3px 0; }
 .export-callout {
   border-top: 1px solid var(--line);
   padding: 20px 0 0;

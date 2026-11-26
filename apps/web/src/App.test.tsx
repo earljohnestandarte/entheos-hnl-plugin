@@ -43,7 +43,7 @@ function deferred<T>() {
 
 function prepareStart(path: 'sample' | 'test' = 'sample', name = 'Integration set') {
   fireEvent.click(screen.getByRole('button', { name: /Get started/ }));
-  fireEvent.click(screen.getByRole('radio', { name: path === 'test' ? /Use my project PDFs/ : /Try the guided sample/ }));
+  fireEvent.click(screen.getByRole('radio', { name: path === 'test' ? /Use my test PDFs/ : /Try the guided sample/ }));
   fireEvent.click(screen.getByRole('button', { name: /^Continue/ }));
   fireEvent.change(screen.getByLabelText('Preparation set name'), { target: { value: name } });
   fireEvent.click(screen.getByRole('checkbox'));
@@ -105,6 +105,9 @@ describe('App preparation journeys', () => {
     expect(readPdf).toHaveBeenCalledTimes(3);
     expect(screen.getByLabelText('Guided sample checklist')).toBeTruthy();
     expect((screen.getByLabelText(`File type for ${supportingName}`) as HTMLSelectElement).value).toBe('supporting');
+    const floor = within(screen.getByRole('article', { name: floorName }));
+    fireEvent.click(floor.getByRole('button', { name: /Review filename/ }));
+    fireEvent.click(floor.getByRole('button', { name: 'Accept name' }));
     navigate(/Fix & review/);
     navigate(/Prepare for CivCheck/);
     const handoff = screen.getByRole('region', { name: 'CivCheck handoff' });
@@ -116,7 +119,7 @@ describe('App preparation journeys', () => {
     ]), expect.any(Array));
     fireEvent.click(screen.getByRole('button', { name: /Back to findings/ }));
     navigate(/Add plans/);
-    expectFiles();
+    expectFiles([titleName, correctedName, supportingName]);
     expect(createDemoFiles).toHaveBeenCalledTimes(1);
     expect(readPdf).toHaveBeenCalledTimes(3);
   });
@@ -232,7 +235,7 @@ describe('App preparation journeys', () => {
     expect(signal.aborted).toBe(true);
     await startWorkspace('test', 'Fresh workspace');
     const freshName = 'A201 - New Plan.pdf';
-    fireEvent.change(screen.getByLabelText('Add project PDFs'), { target: { files: [pdf(freshName)] } });
+    fireEvent.change(screen.getByLabelText('Add test PDFs'), { target: { files: [pdf(freshName)] } });
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('File analysis finished'));
     await act(async () => { parsing.resolve(metadata(correctedName)); });
     expectFiles([freshName]);

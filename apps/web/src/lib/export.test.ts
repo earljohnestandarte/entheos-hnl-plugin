@@ -50,6 +50,27 @@ afterEach(() => {
 });
 
 describe('buildPackage', () => {
+  it('labels a mixed test package and omits full extracted page text from every reference', async () => {
+    const marker = 'SYNTHETIC_UNRELATED_PAGE_TEXT';
+    const sample = await source();
+    sample.record.pages[0].text = marker;
+    const testFile = await createCorrectedPlan();
+    const test = await source(new File([await testFile.arrayBuffer()], 'A102 - Test.pdf'), { id: 'user-test' });
+    const entries = unzipSync(await buildPackage('Mixed', [
+      { ...sample, syntheticSample: true },
+      { ...test, syntheticSample: false },
+    ], []));
+    const manifest = JSON.parse(strFromU8(entries['reference/manifest.json']));
+    expect(manifest).toMatchObject({ schemaVersion: 2, testOnly: true, documents: [
+      { provenance: 'synthetic-sample' }, { provenance: 'user-supplied-test' },
+    ] });
+    expect(manifest.documents[0].pages[0]).not.toHaveProperty('text');
+    expect(strFromU8(entries['reference/guide.txt'])).toContain('TEST-ONLY');
+    expect(strFromU8(entries['reference/findings.csv'])).not.toContain(marker);
+    const report = await PDFDocument.load(entries['reference/readiness.pdf']);
+    expect(drawnText(report)).not.toContain(marker);
+  });
+
   it('separates source uploads from references and preserves source bytes and file metadata', async () => {
     const files = await createDemoFiles();
     const plan = await source(files[0], { id: 'title', revision: 2 });
@@ -70,7 +91,7 @@ describe('buildPackage', () => {
       syntheticDemo: true, applicationPersistence: false, complianceAssessed: false,
       submissionReady: false, referenceFilesAreUploadCandidates: false,
       projectName: 'Example project', unresolved: { fix: 1, review: 1, notAssessed: 0 },
-      rulePack: { id: 'hnl-preparation-demo', version: '0.2.0' },
+      rulePack: { id: 'hnl-preparation-demo', version: '0.3.0' },
       libraries: { 'pdf-lib': '1.17.1', fflate: '0.8.3' },
     });
     expect(manifest.projectRevision).toMatch(/^[a-f\d]{64}$/);
@@ -82,10 +103,9 @@ describe('buildPackage', () => {
     expect(Number.isFinite(Date.parse(manifest.documents[0].sourceLastModified))).toBe(true);
     const guide = strFromU8(entries['reference/guide.txt']);
     expect(guide).toContain('SYNTHETIC-DEMO');
-    expect(guide).toContain('not a CivCheck ingestion format');
+    expect(guide).toContain('Keep the ZIP, test PDFs, and reference reports out of CivCheck and HNL Build');
     expect(guide).toContain('Plan/Other');
-    expect(guide).toContain('does not infer required documents or document-type assignments');
-    expect(guide).toContain('highlights');
+    expect(guide).toContain('suggested document types, page ranges, and title-block evidence');
     expect(guide).toContain('creates no CivCheck ID, certificate of completion, or CivCheck-watermarked plans');
     const csv = strFromU8(entries['reference/findings.csv']);
     expect(csv).toContain('"fileName","page","revision"');
@@ -101,7 +121,7 @@ describe('buildPackage', () => {
     expect(entries['upload/plan/A102 - Renamed Plan.pdf']).toEqual(new Uint8Array(await input.file.arrayBuffer()));
     expect(input.file.name).toBe('A101 - Floor Plan.pdf');
     expect(strFromU8(entries['reference/guide.txt'])).toContain('Unresolved findings: 1 fix; 1 manual');
-    expect(strFromU8(entries['reference/manifest.json'])).toContain('NOT A COMPLIANCE DETERMINATION');
+    expect(strFromU8(entries['reference/manifest.json'])).toContain('does not establish completeness, code compliance');
   });
 
   it.each(['../escape.pdf', 'nested/file.pdf', 'nested\\file.pdf', '/absolute.pdf', 'C:\\file.pdf', 'NUL.pdf', 'file.pdf\u0000'])('rejects unsafe export names: %s', async (exportName) => {
@@ -204,7 +224,7 @@ describe('buildPackage', () => {
     const entries = unzipSync(await buildPackage('Sickels Residence', [input], [], { syntheticDemo: false }));
     const manifest = JSON.parse(strFromU8(entries['reference/manifest.json']));
     expect(manifest.syntheticDemo).toBe(false);
-    expect(manifest.packageLabel).toBe('LOCAL PREPARATION PACKAGE - NOT A COMPLIANCE DETERMINATION');
+    expect(manifest.packageLabel).toBe('LOCAL PREPARATION PACKAGE - TEST-ONLY');
     expect(strFromU8(entries['reference/guide.txt'])).toContain('LOCAL PREPARATION PACKAGE');
     expect(drawnText(await PDFDocument.load(entries['reference/readiness.pdf']))).toContain('LOCAL PREPARATION PACKAGE');
   });

@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 const HELP_STEPS = [
   {
     title: 'Set up a local preparation set',
-    detail: 'Add your own permit PDFs or folder, or try the synthetic sample. No account or official application is created.',
+    detail: 'Add synthetic or approved test PDFs, select a test folder, or try the guided sample.',
   },
   {
     title: 'Add and classify your PDFs',
@@ -15,7 +15,7 @@ const HELP_STEPS = [
   },
   {
     title: 'Prepare for CivCheck',
-    detail: 'Download your package. Upload candidates and applicant-only references are separate. CivCheck still performs its own checks.',
+    detail: 'Use the on-screen checklist to rehearse the handoff. Download the package for local practice and keep the test files out of CivCheck.',
   },
 ];
 

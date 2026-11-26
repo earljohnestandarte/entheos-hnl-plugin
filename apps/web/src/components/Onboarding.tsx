@@ -81,7 +81,7 @@ export function Onboarding({ initialName, initialPath = 'sample', busy, error, o
 
           {step === 1 && (
             <>
-              <p className="muted">Load your own permit PDFs or folder, or walk through a short interactive sample first.</p>
+              <p className="muted">Use synthetic or approved test PDFs, or walk through a short guided sample.</p>
               <fieldset className="path-options">
                 <legend className="visually-hidden">Starting point</legend>
                 <label className={`path-option ${path === 'sample' ? 'is-selected' : ''}`}>
@@ -94,8 +94,8 @@ export function Onboarding({ initialName, initialPath = 'sample', busy, error, o
                 <label className={`path-option ${path === 'test' ? 'is-selected' : ''}`}>
                   <input type="radio" name="start-path" value="test" checked={path === 'test'} onChange={() => setPath('test')} />
                   <span>
-                    <span className="option-title">Use my project PDFs</span>
-                    <span className="option-detail">Choose individual PDFs or an entire project folder. Confirm plan vs. supporting document classifications.</span>
+                    <span className="option-title">Use my test PDFs</span>
+                    <span className="option-detail">Choose individual test PDFs or a folder. Confirm which files are plans and which are supporting documents.</span>
                   </span>
                 </label>
               </fieldset>
@@ -117,7 +117,7 @@ export function Onboarding({ initialName, initialPath = 'sample', busy, error, o
               <p className="field-hint" id="name-hint">Label for this local session, not an official CivCheck project name.</p>
               <div className="setup-selection">
                 <span>Starting with</span>
-                <strong>{path === 'sample' ? 'Guided synthetic sample' : 'Your project PDFs'}</strong>
+                <strong>{path === 'sample' ? 'Guided synthetic sample' : 'Your test PDFs'}</strong>
               </div>
               <div className="notice">
                 <strong>Your files stay in this tab</strong>
@@ -130,7 +130,7 @@ export function Onboarding({ initialName, initialPath = 'sample', busy, error, o
                   disabled={busy}
                   onChange={(event) => { setAcknowledged(event.target.checked); setValidation(''); }}
                 />
-                <span>I understand my files stay in this browser tab, are not saved on refresh, and that this pre-check is not official permit approval.</span>
+                <span>I’ll use synthetic or approved test files and keep them out of CivCheck. Refreshing clears this workspace.</span>
               </label>
             </form>
           )}

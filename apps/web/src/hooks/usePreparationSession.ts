@@ -4,7 +4,7 @@ import { LIMITS, type CheckSummary, type FileKind } from '@hnl/contracts';
 import { readPdf, UnsupportedPdfError } from '../lib/pdf';
 import type { SourceDocument } from '../lib/export';
 
-export type Item = SourceDocument & { demo: boolean; manualKind?: boolean };
+export type Item = SourceDocument & { demo: boolean; syntheticSample: boolean; manualKind?: boolean };
 
 const SUPPORTING_NAME_PATTERN = /\b(?:support(?:ing)?|forms?|escp|rswmp|checklist|attachment|letter|application|tpr|otr|survey|report|calc|spec|manual)\b/i;
 const PLAN_SHEET_PREFIX = /^(?:00[01]|[a-z]{0,2}\d{3})\b/i;
@@ -133,7 +133,7 @@ export function usePreparationSession(): PreparationSession {
     const token = heldOperation ?? Symbol('add');
     operation.current = token;
     const epoch = generation.current;
-    const additions: Item[] = files.map((file) => ({ file, demo, record: { id: crypto.randomUUID(), revision: 1, originalName: file.name, exportName: file.name, kind: inferInitialKind(file.name), bytes: file.size, hash: '', status: 'analyzing', pages: [] } }));
+    const additions: Item[] = files.map((file) => ({ file, demo, syntheticSample: demo, record: { id: crypto.randomUUID(), revision: 1, originalName: file.name, exportName: file.name, kind: inferInitialKind(file.name), bytes: file.size, hash: '', status: 'analyzing', pages: [] } }));
     changeItems((previous) => [...previous, ...additions]);
     setWorking(true);
     try {
@@ -153,7 +153,7 @@ export function usePreparationSession(): PreparationSession {
     await addFilesWithOperation(files, demo);
   }
 
-  async function replaceFileWithOperation(id: string, file: File, heldOperation?: symbol): Promise<void> {
+  async function replaceFileWithOperation(id: string, file: File, heldOperation?: symbol, syntheticSample = false): Promise<void> {
     const previous = itemsRef.current.find((item) => item.record.id === id);
     if (!mounted.current || !previous || exportingRef.current || (operation.current !== null && operation.current !== heldOperation)) return;
     if (file.size > LIMITS.maxFileBytes || itemsRef.current.reduce((sum, item) => sum + item.file.size, 0) - previous.file.size + file.size > LIMITS.maxTotalBytes) { setError('Replacement exceeds the prototype file or set size limit.'); return; }
@@ -161,7 +161,7 @@ export function usePreparationSession(): PreparationSession {
     operation.current = token;
     setError(''); setNotice('');
     controllers.current.get(id)?.abort();
-    const replacement: Item = { ...previous, file, record: { ...previous.record, revision: previous.record.revision + 1, originalName: file.name, exportName: file.name, bytes: file.size, pages: [], hash: '', status: 'analyzing', error: undefined } };
+    const replacement: Item = { ...previous, file, syntheticSample, record: { ...previous.record, revision: previous.record.revision + 1, originalName: file.name, exportName: file.name, bytes: file.size, pages: [], hash: '', status: 'analyzing', error: undefined } };
     changeItems((all) => all.map((item) => item.record.id === id ? replacement : item));
     setWorking(true);
     const epoch = generation.current;
@@ -208,7 +208,7 @@ export function usePreparationSession(): PreparationSession {
       if (!isActive(epoch, token)) return;
       const file = await createCorrectedPlan();
       if (!isActive(epoch, token) || itemsRef.current.find((item) => item.record.id === id)?.record.revision !== revision) return;
-      await replaceFileWithOperation(id, file, token);
+      await replaceFileWithOperation(id, file, token, true);
     } catch {
       if (isActive(epoch, token)) setError('The corrected synthetic PDF could not be generated.');
     } finally {
@@ -243,19 +243,19 @@ export function usePreparationSession(): PreparationSession {
     operation.current = token;
     exportingRef.current = true;
     setExporting(true); setError(''); setNotice('');
-    const snapshot: SourceDocument[] = itemsRef.current.map((item) => ({ file: item.file, record: { ...item.record, pages: item.record.pages.map((page) => ({ ...page })) } }));
-    const syntheticDemo = itemsRef.current.some((item) => item.demo);
+    const snapshot: SourceDocument[] = itemsRef.current.map(({ file, record, syntheticSample }) => ({
+      file, syntheticSample, record: { ...record, pages: record.pages.map((page) => ({ ...page })) },
+    }));
+    const syntheticDemo = snapshot.some((source) => source.syntheticSample);
     try {
       const { buildPackage, downloadBytes } = await import('../lib/export');
       if (!isActive(epoch, token)) return;
       // The exporter validates every snapshot record and verifies the original source bytes.
       const findings = analyzeDocuments(snapshot.map((item) => item.record)).findings;
-      const bytes = syntheticDemo
-        ? await buildPackage(projectName, snapshot, findings)
-        : await buildPackage(projectName, snapshot, findings, { syntheticDemo: false });
+      const bytes = await buildPackage(projectName, snapshot, findings);
       if (!isActive(epoch, token)) return;
-      downloadBytes(bytes, syntheticDemo ? 'HNL-prescreen-demo-package.zip' : 'HNL-prescreen-package.zip', 'application/zip');
-      setNotice('Package downloaded. Extract the ZIP; upload only the intended files in upload/. Keep reference/ for your own use.');
+      downloadBytes(bytes, syntheticDemo ? 'HNL-preflight-sample-test-only.zip' : 'HNL-preflight-test-only.zip', 'application/zip');
+      setNotice('Package downloaded. Extract the ZIP to rehearse the handoff locally.');
     } catch (failure) {
       if (isActive(epoch, token)) setError(failure instanceof Error ? failure.message : 'The package could not be created.');
     } finally {
