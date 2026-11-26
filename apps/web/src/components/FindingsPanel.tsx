@@ -394,7 +394,7 @@ export function FindingsPanel({
                       aria-pressed={filter === category}
                       onClick={() => setFilter(category)}
                     >
-                      <span className={`status-dot tone-${pillTone}`} aria-hidden="true" />
+                      {(allFixesDone || allReviewsDone) && <IconCheck width={12} height={12} />}
                       <span>{pillText}</span>
                     </button>
                   );
@@ -430,10 +430,9 @@ export function FindingsPanel({
                   <section className="finding-group" key={category} aria-label={groupTitle}>
                     <div className="finding-group-head">
                       <div className="finding-group-title">
-                        <span className={`status-dot tone-${groupTone}`} aria-hidden="true" />
                         <h3>{groupTitle}</h3>
                       </div>
-                      <span className="panel-meta">
+                      <span className={`panel-meta ${groupTone === 'success' ? 'is-ok' : ''}`}>
                         {category === 'review' && verifiedReviewCount > 0
                           ? `${openInCategory} open · ${findings.length - openInCategory} verified`
                           : category === 'fix' && groupResolvedFixes.length > 0
