@@ -33,6 +33,14 @@ const categoryDescriptions: Record<FindingCategory, string> = {
   'not-assessed': 'Outside automated file coverage or could not be completed.',
 };
 
+function checklistTone(reviewType: string): string {
+  const lower = reviewType.toLowerCase();
+  if (lower.includes('energy')) return 'badge-warning';
+  if (lower.includes('water supply')) return 'badge-info';
+  if (lower.includes('storm')) return 'badge-green';
+  return '';
+}
+
 function SmoothExpander({ label, children }: { label: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
@@ -461,8 +469,8 @@ export function FindingsPanel({
                   {visibleChecklist.map((item, idx) => (
                     <article className="checklist-item" key={`${item.sourceFileId}-${item.page}-${idx}`}>
                       <div className="checklist-meta">
-                        <span className="pill-badge badge-info">{item.reviewType}</span>
-                        <span className="muted small">{item.section}, p. {item.page}</span>
+                        <span className={`pill-badge ${checklistTone(item.reviewType)}`.trim()}>{item.reviewType}</span>
+                        <span className="checklist-section-code">{item.section}, p. {item.page}</span>
                       </div>
                       <h4>{item.codeTitle}</h4>
                       <p className="muted">{item.summary}</p>
