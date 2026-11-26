@@ -24,18 +24,20 @@ corepack pnpm check
 corepack pnpm audit --prod
 ```
 
-`check` runs TypeScript checking, Vitest tests, and the production build. All pass locally, including **196 unit tests**. The full `corepack pnpm audit` reports no known vulnerabilities; this is not a security certification. The generated-sample correction flow, production PDF preview/page navigation, and ZIP download were verified in the in-app browser. Native chooser/drop automation and full browser/accessibility acceptance remain unverified.
+`check` runs TypeScript checking, Vitest tests, and the production build. All pass locally, including **229 automated tests** (the original 196 plus onboarding, component, session, and application-flow regressions). The full `corepack pnpm audit` reports no known vulnerabilities; this is not a security certification. The generated-sample correction flow, production PDF preview/page navigation, and ZIP download were verified in the in-app browser. Native chooser/drop automation and full browser/accessibility acceptance remain unverified.
 
 To serve the production build locally, run `corepack pnpm --filter @hnl/web preview` after `corepack pnpm build`, then open http://127.0.0.1:4173.
 
 ## Try the sample fix path
 
-1. Select **Load sample set** in the empty workspace. Three PDFs are generated locally: a title sheet, a deliberately portrait floor plan with the bad filename `A101 & Floor Plan.pdf`, and a three-page supporting form. None is an official form or a real project.
+1. Select **Get started**, review the coverage, and continue with **Try the guided sample**. Name the set, acknowledge the test-only/session-only limits, and select **Start guided sample**. Three PDFs are generated locally: a title sheet, a deliberately portrait floor plan with the bad filename `A101 & Floor Plan.pdf`, and a three-page supporting form. None is an official form or a real project. Choose **Use my test PDFs** instead to start with an empty workspace.
 2. Review **Plan / Supporting document** classification. Supporting forms are not subject to plan-only sheet-size and single-page rules.
 3. Select **Review filename**, inspect the suggestion, then **Accept name**. **Undo rename** restores the original name; source PDF bytes are never rewritten.
 4. Open **View PDF**, navigate pages, and expand **Extracted text**. Review the per-file and set-level findings under **Fix**, **Review**, **Advice**, and **Not assessed**.
 5. Use **Use corrected sample PDF** on the portrait plan, or **Replace** with another safe test PDF. Replacement increments the file revision and recalculates findings. The corrected sample fixes only its filename/orientation, not design compliance.
-6. Open **CivCheck handoff** and download the ZIP. Covered file checks may complete, but manual reviews and unassessed checks remain; that is not submission readiness.
+6. Open **Prepare for CivCheck** and download the preparation ZIP. Covered file checks may complete, but manual reviews and unassessed checks remain; that is not submission readiness.
+
+The four local steps are **Set up → Add plans → Fix & review → Prepare for CivCheck**. They are not CivCheck progress counters. **How it works** reopens help without discarding files; **Set up** lets you rename the set. **Start a new preparation set** asks for confirmation before clearing the session.
 
 You can also choose/drop test PDFs, remove individual files, or clear the workspace through its confirmation prompt. Individual removal currently acts immediately; it is not recoverable history. Rename undo is not a general undo/history system.
 

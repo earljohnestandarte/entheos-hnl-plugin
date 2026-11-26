@@ -1,7 +1,7 @@
 # Prototype status — S0
 
-**Updated:** 2026-11-23
-**State:** S0 implemented and checked locally: TypeScript, 196 unit tests, production build, dependency audit, and the browser sample correction/export flow passed. Remaining verification limits are recorded below.
+**Updated:** 2026-11-25
+**State:** S0 with guided onboarding and redesigned preparation UI implemented and checked locally: TypeScript, 229 automated tests, production build, dependency audit, and the browser sample correction/export flow passed. Remaining verification limits are recorded below.
 **Scope:** Test-only first useful slice, not the full MVP, M0–M6 completion, or P00–P22 sign-off.
 
 ## 1. Safety and claims
@@ -18,7 +18,8 @@
 
 | Area | Current capability and boundary |
 | --- | --- |
-| Workspace | Choose/drop test PDFs, name the preparation set, classify each as Plan or Supporting document |
+| Onboarding | Coverage overview, guided-sample/test-PDF choice, set name and explicit memory-only/test-only acknowledgment; back navigation retains setup |
+| Workspace | Four local preparation steps; choose/drop test PDFs, rename the set without discarding files, classify Plan/Supporting document; reusable help and confirmed reset |
 | Samples | Generate three local PDFs: title sheet, bad-name/portrait floor plan, and three-page supporting form; generate a corrected plan replacement |
 | Analysis | PDF.js worker extracts page count, dimensions/rotation and text; unsupported/error states remain visible |
 | Preview | Page canvas, page navigation and extracted text; no evidence-region annotations or verified highlights |
@@ -34,12 +35,14 @@ Covered demo checks include filename format/collisions, title filename, plan pag
 
 ## 3. Try the correction path
 
-1. Start with an empty workspace and select **Load sample set**; confirm all three PDFs and their classification.
+1. Complete **Get started → Try the guided sample → Continue**, name the set and acknowledge the test/session limits, then **Start guided sample**. Confirm all three PDFs and their classification. The alternative **Use my test PDFs** opens an empty workspace.
 2. For `A101 & Floor Plan.pdf`, select **Review filename**, inspect the proposal and **Accept name**; try **Undo rename**.
 3. Open **View PDF**, inspect the portrait page, and expand **Extracted text**. Review the file/set findings.
 4. Select **Use corrected sample PDF** (or **Replace** with a safe test PDF). Confirm the new revision and recalculated findings.
 5. Revisit manual reviews and not-assessed items. Fixing the sample's filename/orientation does not establish compliance.
-6. Open **CivCheck handoff**, download and inspect the ZIP. Clear the workspace only after acknowledging data loss.
+6. Open **Prepare for CivCheck**, download and inspect the ZIP. **How it works** opens help without clearing data. **Start a new preparation set** requires confirmation before clearing it.
+
+The app borrows familiar CivCheck terminology only for the downstream handoff. Its independent **Set up → Add plans → Fix & review → Prepare for CivCheck** flow is not a clone, live portal progress, or an official review. The guided checklist never marks manual review complete merely because formatting fixes disappear.
 
 This path is narrower than the original full demonstration: it has no scope questions, value/evidence confirmations, saved-state reload or backup restore.
 
@@ -77,7 +80,8 @@ The ZIP is an organizational convenience, not an assumed CivCheck ingestion form
 | Evidence | Status |
 | --- | --- |
 | Core unit checks | 169 tests passed: filenames, geometry, supporting/plan distinction, unresolved analysis, current revisions and CSV safety |
-| Export, generated-demo and deadline checks | 27 tests passed: source-preserving ZIP, hashes/stale references/collisions, fixture dimensions, cancellation/deadline settlement; 196 total |
+| Export, generated-demo and deadline checks | 27 tests passed: source-preserving ZIP, hashes/stale references/collisions, fixture dimensions, cancellation/deadline settlement |
+| Onboarding, workspace, session and full-App regressions | 33 additional tests passed; 229 total. Covers validation, both entry paths, back/name preservation, guide progress, help retaining files, reset confirmation, late async work and repeated starts |
 | Typecheck/build and dependency audit | `corepack pnpm check` passed. Full `corepack pnpm audit` reports no known vulnerabilities after upgrading Vitest to 4.1.12; not a complete security review |
 | Browser sample flow and downloaded output | In-app Chromium: generated sample parsing, filename preview/accept (2 fixes to 1), corrected replacement (0 covered fixes, manual reviews remain), production PDF canvas/page navigation, and observed ZIP download event passed. ZIP structure/hash invariants also pass unit tests |
 | File chooser/drop and replacement uploads | Not end-to-end verified: the available browser backend cannot automate native file uploads. Generated PDFs exercise the same parser/add/replace paths, but this does not substitute for native chooser/drop testing |
