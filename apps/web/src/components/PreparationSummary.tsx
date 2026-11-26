@@ -1,9 +1,11 @@
 import type { CheckSummary } from '@hnl/contracts';
+import { StatusBreakdown } from './StatusBreakdown';
 
-export function PreparationSummary({ summary, fileCount, working, verifiedReviewCount = 0, resolvedFixCount = 0, onCoverage }: {
+export function PreparationSummary({ summary, fileCount, working, errorFileCount = 0, verifiedReviewCount = 0, resolvedFixCount = 0, onCoverage }: {
   summary: CheckSummary;
   fileCount: number;
   working: boolean;
+  errorFileCount?: number;
   verifiedReviewCount?: number;
   resolvedFixCount?: number;
   onCoverage: () => void;
@@ -19,6 +21,16 @@ export function PreparationSummary({ summary, fileCount, working, verifiedReview
         <p className="summary-status">
           {working ? 'Analyzing PDFs…' : fileCount ? summary.label : 'No files added yet'}
         </p>
+        {!working && (
+          <StatusBreakdown
+            summary={summary}
+            fileCount={fileCount}
+            working={working}
+            errorFileCount={errorFileCount}
+            verifiedReviewCount={verifiedReviewCount}
+            resolvedFixCount={resolvedFixCount}
+          />
+        )}
         {working && fileCount > 0 && (
           <div className="sidebar-progress" aria-hidden="true">
             <span style={{ transform: `scaleX(${Math.max(0.12, summary.completedCount / fileCount)})` }} />
@@ -27,25 +39,25 @@ export function PreparationSummary({ summary, fileCount, working, verifiedReview
         <dl className="summary-stats">
           <div><dt>Files</dt><dd>{fileCount}</dd></div>
           <div>
-            <dt><span className="summary-label"><span className={`status-dot tone-${summary.fixCount > 0 ? 'warning' : 'neutral'}`} aria-hidden="true" />To fix</span></dt>
+            <dt>To fix</dt>
             <dd className={summary.fixCount > 0 ? 'stat-warn' : ''}>
               {fileCount ? summary.fixCount : '—'}
             </dd>
           </div>
           {fileCount > 0 && resolvedFixCount > 0 && (
-            <div><dt><span className="summary-label"><span className="status-dot tone-success" aria-hidden="true" />Fixed</span></dt><dd className="stat-ok">{resolvedFixCount}</dd></div>
+            <div><dt>Fixed</dt><dd className="stat-ok">{resolvedFixCount}</dd></div>
           )}
           {summary.classificationPendingCount > 0 && (
-            <div><dt><span className="summary-label"><span className="status-dot tone-warning" aria-hidden="true" />Confirm type</span></dt><dd className="stat-warn">{summary.classificationPendingCount}</dd></div>
+            <div><dt>Confirm type</dt><dd className="stat-warn">{summary.classificationPendingCount}</dd></div>
           )}
           <div>
-            <dt><span className="summary-label"><span className={`status-dot tone-${openReviews > 0 ? 'info' : 'neutral'}`} aria-hidden="true" />To review</span></dt>
+            <dt>To review</dt>
             <dd className={openReviews > 0 ? 'stat-info' : ''}>{fileCount ? openReviews : '—'}</dd>
           </div>
           {fileCount > 0 && verifiedReviewCount > 0 && (
-            <div><dt><span className="summary-label"><span className="status-dot tone-success" aria-hidden="true" />Verified</span></dt><dd className="stat-ok">{verifiedReviewCount}</dd></div>
+            <div><dt>Verified</dt><dd className="stat-ok">{verifiedReviewCount}</dd></div>
           )}
-          <div><dt><span className="summary-label"><span className="status-dot tone-neutral" aria-hidden="true" />Not assessed</span></dt><dd className="stat-neutral">{fileCount ? unassessed : '—'}</dd></div>
+          <div><dt>Not assessed</dt><dd className="stat-neutral">{fileCount ? unassessed : '—'}</dd></div>
         </dl>
         <p className="summary-footnote">Local file checks only. Not CivCheck progress or approval.</p>
       </section>

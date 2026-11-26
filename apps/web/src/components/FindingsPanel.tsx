@@ -3,6 +3,7 @@ import { DEMO_RULE_PACK, type CheckSummary, type DocumentRecord, type FileKind, 
 import { FilenameValidatorEditor } from './FilenameValidatorEditor';
 import { handoffFiles } from '../lib/handoffFiles';
 import { FINDING_STATUS_META, TONE_BADGE_CLASS, type StatusTone } from '../lib/status';
+import { StatusBreakdown } from './StatusBreakdown';
 import { IconCheck, IconCopy, IconEye, IconReplace } from './Icons';
 
 export interface FindingsPanelProps {
@@ -57,7 +58,14 @@ function SmoothExpander({ label, children }: { label: string; children: ReactNod
 }
 
 const FILENAME_RULES = new Set(['safe-filename', 'plan-filename', 'title-filename', 'duplicate-filename']);
-const PDF_REPLACE_RULES = new Set(['plan-layout', 'plan-page-count', 'common-sheet-size', 'analysis-unavailable']);
+const PDF_REPLACE_RULES = new Set([
+  'plan-layout',
+  'plan-page-count',
+  'common-sheet-size',
+  'analysis-unavailable',
+  'page-information-unavailable',
+  'reference-unavailable',
+]);
 
 function FindingCard({
   finding,
@@ -215,6 +223,7 @@ export function FindingsPanel({
 
   const verifiedSet = new Set(verifiedIds);
   const nameRecords = handoffFiles(items.map((item) => item.record)).included;
+  const errorFileCount = items.filter(({ record }) => record.status === 'error' || record.status === 'unsupported').length;
   const openReviewCount = summary.findings.filter((finding) => finding.category === 'review' && !verifiedSet.has(finding.id)).length;
   const verifiedReviewCount = summary.reviewCount - openReviewCount;
 
@@ -315,6 +324,14 @@ export function FindingsPanel({
       ) : (
         <>
           <div className={`status-callout ${summary.formatChecksComplete ? 'is-ok' : 'is-warn'}`}>
+            <StatusBreakdown
+              summary={summary}
+              fileCount={items.length}
+              working={busy}
+              errorFileCount={errorFileCount}
+              verifiedReviewCount={verifiedReviewCount}
+              resolvedFixCount={resolvedFixes.length}
+            />
             <p>{summary.label}. Independent local preparation check, not CivCheck approval or proof of submission readiness.</p>
             <p>Sheet index · {summary.sheetIndexCoverage === 'compared' ? 'Compared'
               : summary.sheetIndexCoverage === 'partial' ? 'Partially compared' : 'Needs manual review'}</p>
@@ -394,7 +411,7 @@ export function FindingsPanel({
                       aria-pressed={filter === category}
                       onClick={() => setFilter(category)}
                     >
-                      <span className={`status-dot tone-${pillTone}`} aria-hidden="true" />
+                      {(allFixesDone || allReviewsDone) && <IconCheck width={12} height={12} />}
                       <span>{pillText}</span>
                     </button>
                   );
@@ -430,10 +447,9 @@ export function FindingsPanel({
                   <section className="finding-group" key={category} aria-label={groupTitle}>
                     <div className="finding-group-head">
                       <div className="finding-group-title">
-                        <span className={`status-dot tone-${groupTone}`} aria-hidden="true" />
                         <h3>{groupTitle}</h3>
                       </div>
-                      <span className="panel-meta">
+                      <span className={`panel-meta ${groupTone === 'success' ? 'is-ok' : ''}`}>
                         {category === 'review' && verifiedReviewCount > 0
                           ? `${openInCategory} open · ${findings.length - openInCategory} verified`
                           : category === 'fix' && groupResolvedFixes.length > 0
