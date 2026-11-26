@@ -54,10 +54,19 @@ export function fileStatusMeta(record: DocumentRecord, fixCount: number): {
   return { label: 'Checked', tone: 'success' };
 }
 
+export interface StatusSegment {
+  key: string;
+  label: string;
+  count: number;
+  tone: StatusTone;
+}
+
 export interface StatusOverview {
   label: string;
   detail: string;
   tone: StatusTone;
+  segments: StatusSegment[];
+  total: number;
 }
 
 export function buildStatusOverview({
@@ -66,6 +75,7 @@ export function buildStatusOverview({
   working,
   errorFileCount = 0,
   verifiedReviewCount = 0,
+  resolvedFixCount = 0,
 }: {
   summary: CheckSummary;
   fileCount: number;
@@ -79,8 +89,8 @@ export function buildStatusOverview({
 
   let label = 'Covered checks pass';
   let detail = unassessed > 0
-    ? `${unassessed} outside local check scope`
-    : 'All tracked local checks resolved';
+    ? `${unassessed} outside local scope`
+    : 'All tracked checks resolved';
   let tone: StatusTone = 'success';
 
   if (fileCount === 0) {
@@ -108,5 +118,20 @@ export function buildStatusOverview({
     tone = 'info';
   }
 
-  return { label, detail, tone };
+  const resolvedTotal = resolvedFixCount + verifiedReviewCount;
+  const passedCount = resolvedTotal > 0
+    ? resolvedTotal
+    : (summary.fixCount === 0 && errorFileCount === 0 ? summary.completedCount : 0);
+
+  const rawSegments: StatusSegment[] = [
+    { key: 'passed', label: resolvedTotal > 0 ? 'fixed / verified' : 'checked', count: passedCount, tone: 'success' },
+    { key: 'danger', label: 'unreadable', count: errorFileCount, tone: 'danger' },
+    { key: 'fix', label: 'to fix', count: summary.fixCount, tone: 'warning' },
+    { key: 'review', label: 'to review', count: openReviews, tone: 'info' },
+    { key: 'not-assessed', label: 'not assessed', count: unassessed, tone: 'neutral' },
+  ];
+  const segments = rawSegments.filter((segment) => segment.count > 0);
+  const total = segments.reduce((sum, segment) => sum + segment.count, 0);
+
+  return { label, detail, tone, segments, total };
 }
