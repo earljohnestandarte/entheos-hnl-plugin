@@ -62,6 +62,25 @@ function planNameParts(name: string): RegExpMatchArray | null {
     : null;
 }
 
+/** Validates plan sheet naming conventions beyond basic filename safety. */
+export function planFilenameIssue(name: string): string | undefined {
+  const parts = planNameParts(name);
+  if (!parts) {
+    return 'Plan filenames must start with a sheet code (e.g., A101 - Floor Plan.pdf) or 000 - Title Sheet.pdf.';
+  }
+  if (/^title[ _-]+sheet(?:$|[ _-])/i.test(parts[2]) && !isTitleSheetName(name)) {
+    return 'Title sheets must start with 000 or 001 (e.g., 000 - Title Sheet.pdf) without a discipline prefix.';
+  }
+  return undefined;
+}
+
+export function hasValidPlanLayout(page: PageInfo): boolean {
+  return validDimensions(page) &&
+    page.widthInches > page.heightInches &&
+    page.widthInches >= DEMO_RULE_PACK.minWidthInches &&
+    page.heightInches >= DEMO_RULE_PACK.minHeightInches;
+}
+
 /** Suggestions are previews only: they do not establish sheet identity or uniqueness. */
 export function suggestFilename(name: string, kind: FileKind): string {
   const basename = name.split(/[\\/]/).pop() ?? '';
@@ -244,11 +263,7 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
       }
       // widthInches/heightInches are supplied viewport dimensions: rotation is
       // already reflected in them. Swapping again would misclassify rotated PDFs.
-      const layoutIssues = file.pages.filter(page => validDimensions(page) && (
-        page.widthInches <= page.heightInches ||
-        page.widthInches < DEMO_RULE_PACK.minWidthInches ||
-        page.heightInches < DEMO_RULE_PACK.minHeightInches
-      ));
+      const layoutIssues = file.pages.filter(page => validDimensions(page) && !hasValidPlanLayout(page));
       if (layoutIssues.length > 0) {
         const sample = layoutIssues.slice(0, 3)
           .map(page => `page ${page.page}: ${page.widthInches} × ${page.heightInches} in`).join('; ');
