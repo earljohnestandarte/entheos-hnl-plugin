@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import { suggestFilename } from '@hnl/core';
-import type { CheckSummary, DocumentRecord, FileKind } from '@hnl/contracts';
-import { IconEye, IconReplace, IconTrash, SheetThumb } from './Icons';
-import { exportNameIssue } from '../lib/exportNames';
+import { useEffect, useRef, useState } from 'react';
+import type { CheckSummary, DocumentRecord, FileKind, Finding } from '@hnl/contracts';
+import { IconAlert, IconCheck, IconEye, IconReplace, IconTrash, SheetThumb } from './Icons';
+import { FilenameValidatorEditor } from './FilenameValidatorEditor';
+import { fileVerificationKey, validateDocumentChecks } from '../lib/exportNames';
 import { handoffFiles } from '../lib/handoffFiles';
+import { fileStatusMeta, TONE_BADGE_CLASS } from '../lib/status';
 
 interface FileItem { record: DocumentRecord; demo: boolean }
 interface Props {
@@ -12,6 +13,9 @@ interface Props {
   onAdd: (files: File[]) => void; onReplace: (id: string, file: File) => void;
   onRename: (id: string, name: string) => void; onClassify: (id: string, kind: FileKind | 'reference') => void;
   onOmitReference: (id: string) => void;
+  verifiedFileKeys?: Record<string, string>;
+  onVerifyFile?: (id: string) => void;
+  resolvedFixes?: Finding[];
   replacingId?: string | null;
   removedName?: string;
   onCancelReplacement: () => void;
@@ -49,58 +53,19 @@ async function collectDroppedFiles(dataTransfer: DataTransfer): Promise<File[]> 
   return nested.flat();
 }
 
-function FilenameEditor({ record, records, busy, onRename }: {
-  record: DocumentRecord; records: readonly DocumentRecord[]; busy: boolean; onRename: (name: string) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(record.exportName);
-  const errorId = useId();
-  const issue = exportNameIssue(name.trim(), records, record.id);
-  if (!editing) {
-    return (
-      <div className="filename-actions">
-        <button type="button" className="button ghost sm" disabled={busy} onClick={() => { setName(suggestFilename(record.exportName, record.kind)); setEditing(true); }}>
-          Review filename
-        </button>
-        {record.exportName !== record.originalName && (
-          <button type="button" className="button ghost sm" disabled={busy} onClick={() => onRename(record.originalName)}>
-            Undo rename
-          </button>
-        )}
-      </div>
-    );
-  }
-  return (
-    <form className="filename-editor" onSubmit={(event) => {
-      event.preventDefault();
-      if (!busy && !issue) { onRename(name.trim()); setEditing(false); }
-    }}>
-      <label className="field-label">
-        Proposed export name
-        <input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} autoFocus disabled={busy}
-          aria-invalid={!!issue} aria-describedby={issue ? errorId : undefined} />
-      </label>
-      <p className="field-hint">Current: {record.exportName}. Confirm the sheet number; only the exported filename changes.</p>
-      {issue && <p className="error-text" id={errorId} role="status">{issue}</p>}
-      <div className="action-row">
-        <button type="button" className="button secondary sm" onClick={() => setEditing(false)}>Cancel</button>
-        <button type="submit" className="button primary sm" disabled={busy || !!issue}>Accept name</button>
-      </div>
-    </form>
-  );
-}
-
 export function FilesPanel(props: Props) {
   const { items, summary, busy, exporting, highlightedId } = props;
   const hasFiles = items.length > 0;
   const guided = items.some((item) => item.demo);
-  const nameRecords = handoffFiles(items.map((item) => item.record)).included;
+  const allRecords = items.map((item) => item.record);
+  const nameRecords = handoffFiles(allRecords).included;
   const picker = useRef<HTMLInputElement>(null);
   const folderPicker = useRef<HTMLInputElement>(null);
   const replacement = useRef<HTMLInputElement>(null);
   const replaceId = useRef<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [skippedNotice, setSkippedNotice] = useState('');
+  const [expandedChecks, setExpandedChecks] = useState<Record<string, boolean>>({});
   const samplePlan = items.find((item) => item.demo && /^A101/.test(item.record.originalName));
   const renamed = samplePlan && !samplePlan.record.exportName.includes('&');
   const corrected = samplePlan?.record.pages.some((page) => page.widthInches > page.heightInches);
@@ -202,14 +167,17 @@ export function FilesPanel(props: Props) {
 
         {hasFiles && <div className="file-list">
           {items.map(({ record, demo }, idx) => {
-            const count = summary.findings.filter((finding) => finding.fileId === record.id && finding.category === 'fix').length;
+            const fileFixes = summary.findings.filter((finding) => finding.fileId === record.id && finding.category === 'fix');
+            const fileResolvedFixes = (props.resolvedFixes ?? []).filter((finding) => finding.fileId === record.id);
+            const count = fileFixes.length;
             const first = record.pages[0];
             const isRenamed = record.exportName !== record.originalName;
-            const statusTone = record.status === 'analyzing'
-              ? 'badge-info'
-              : record.status !== 'complete' || count > 0 || record.typeReview
-                ? 'badge-warning'
-                : 'badge-green';
+            const isVerified = props.verifiedFileKeys?.[record.id] === fileVerificationKey(record) &&
+              record.status === 'complete' && count === 0 && !record.typeReview;
+            const isFixed = count === 0 && fileResolvedFixes.length > 0 && record.status === 'complete' && !record.typeReview;
+            const checksOpen = Boolean(expandedChecks[record.id]);
+            const validationChecks = checksOpen ? validateDocumentChecks(record, nameRecords, summary) : [];
+            const fileStatus = fileStatusMeta(record, count);
             return (
               <article
                 id={`file-${record.id}`}
@@ -236,17 +204,37 @@ export function FilesPanel(props: Props) {
                       {isRenamed ? ` (originally ${record.originalName})` : ''}
                     </p>
                   </div>
-                  <span className={`pill-badge ${statusTone}`}>
-                    {record.status === 'analyzing' ? 'Processing' : record.status !== 'complete' ? 'Needs attention'
-                      : record.typeReview ? 'Confirm type' : count ? `${count} ${count === 1 ? 'fix' : 'fixes'}`
-                      : record.disposition === 'reference' ? 'Review only' : 'Checked'}
-                  </span>
+                  <div className="file-badges">
+                    <span className={`pill-badge ${TONE_BADGE_CLASS[fileStatus.tone]}`}>
+                      {fileStatus.label}
+                    </span>
+                    {isFixed && (
+                      <span className="pill-badge badge-success verified-pill">
+                        <IconCheck width={12} height={12} /> Fixed
+                      </span>
+                    )}
+                    {isVerified && (
+                      <span className="pill-badge badge-success verified-pill">
+                        <IconCheck width={12} height={12} /> Verified
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {record.error && <p className="error-text">{record.error}</p>}
                 {record.typeReview && <p className="field-hint">{record.typeReview}</p>}
                 {!record.typeReview && record.kindReason && <p className="field-hint">{record.kindReason}</p>}
                 {record.omitFromPackage && <p className="field-hint">This review reference will be listed as omitted in the ZIP.</p>}
+                {count > 0 && (
+                  <ul className="file-fix-list" aria-label={`Open fixes for ${record.exportName}`}>
+                    {fileFixes.map((finding) => (
+                      <li key={finding.id}>
+                        <IconAlert width={13} height={13} />
+                        <span><strong>{finding.title}:</strong> {finding.detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {props.replacingId === record.id && <div className="notice">
                   <span role="status">Checking replacement… The current revision is still available.</span>{' '}
                   <button type="button" className="button ghost sm" onClick={props.onCancelReplacement}>Cancel replacement</button>
@@ -270,7 +258,7 @@ export function FilesPanel(props: Props) {
                         {record.omitFromPackage ? 'Include in ZIP' : 'Omit from ZIP'}
                       </button>
                     )}
-                    <FilenameEditor key={`${record.revision}-${record.exportName}`} record={record}
+                    <FilenameValidatorEditor key={`${record.revision}-${record.exportName}-${record.kind}-${record.disposition ?? 'source'}`} record={record}
                       records={nameRecords}
                       busy={busy} onRename={(name) => props.onRename(record.id, name)} />
                     {demo && /^A101/.test(record.originalName) && record.pages.some((page) => page.heightInches > page.widthInches) && (
@@ -280,6 +268,18 @@ export function FilesPanel(props: Props) {
                     )}
                   </div>
                   <div className="action-row file-actions-right">
+                    <button
+                      type="button"
+                      className="button ghost sm"
+                      disabled={busy || record.status === 'analyzing'}
+                      aria-expanded={checksOpen}
+                      onClick={() => {
+                        if (!checksOpen) props.onVerifyFile?.(record.id);
+                        setExpandedChecks((current) => ({ ...current, [record.id]: !checksOpen }));
+                      }}
+                    >
+                      {checksOpen ? 'Hide checks' : isVerified ? 'Re-verify' : 'Verify checks'}
+                    </button>
                     <button type="button" className="button secondary sm has-icon" disabled={record.status !== 'complete' || exporting} onClick={() => props.onPreview(record.id)}>
                       <IconEye /> View PDF
                     </button>
@@ -291,6 +291,22 @@ export function FilesPanel(props: Props) {
                     </button>
                   </div>
                 </div>
+                {checksOpen && (
+                  <div className="file-validator-panel" aria-label={`Validation checks for ${record.exportName}`}>
+                    <div className="file-validator-head">
+                      <strong>{count === 0 && !record.typeReview && record.status === 'complete' ? 'All covered file checks pass' : 'File check validator'}</strong>
+                      <span className="muted small">Revision {record.revision}</span>
+                    </div>
+                    <ul className="validator-list">
+                      {validationChecks.map((check) => (
+                        <li key={check.id} className={`is-${check.status}`}>
+                          {check.status === 'pass' ? <IconCheck width={13} height={13} /> : <IconAlert width={13} height={13} />}
+                          <span><strong>{check.label}:</strong> {check.detail}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </article>
             );
           })}
