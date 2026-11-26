@@ -1,0 +1,21 @@
+{
+  "name": "hnl-permit-precheck",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.23.0",
+  "engines": { "node": ">=22.12.0 <23" },
+  "scripts": {
+    "dev": "corepack pnpm --filter @hnl/web dev",
+    "build": "corepack pnpm --filter @hnl/web build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "corepack pnpm typecheck && corepack pnpm test && corepack pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  }
+}
