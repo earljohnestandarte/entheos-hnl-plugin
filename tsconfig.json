@@ -20,5 +20,5 @@
       "@hnl/contracts": ["packages/contracts/src/index.ts"]
     }
   },
-  "include": ["apps", "packages", "vitest.config.ts"]
+  "include": ["apps", "packages", "vitest.config.ts", "playwright.config.ts"]
 }

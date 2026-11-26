@@ -9,4 +9,5 @@ coverage/
 fixtures/private/
 test-results/
 playwright-report/
+.playwright-dist/
 *.log

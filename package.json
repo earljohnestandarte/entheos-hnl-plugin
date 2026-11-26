@@ -4,16 +4,21 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.23.0",
-  "engines": { "node": ">=22.12.0 <23" },
+  "engines": {
+    "node": ">=22.12.0 <23"
+  },
   "scripts": {
     "dev": "corepack pnpm --filter @hnl/web dev",
     "build": "corepack pnpm --filter @hnl/web build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "serve:e2e": "corepack pnpm --filter @hnl/web exec vite build --configLoader runner --outDir .playwright-dist && corepack pnpm --filter @hnl/web exec vite preview --configLoader runner --outDir .playwright-dist --port 4180",
     "test:watch": "vitest",
     "check": "corepack pnpm typecheck && corepack pnpm test && corepack pnpm build"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "@types/node": "22.20.5",
     "typescript": "5.9.3",
     "vitest": "4.1.12"
