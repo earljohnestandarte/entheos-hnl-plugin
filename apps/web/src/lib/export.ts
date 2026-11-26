@@ -2,7 +2,7 @@ import { DEMO_RULE_PACK, type DocumentRecord, type Finding } from '@hnl/contract
 import { csvCell } from '@hnl/core';
 import { strToU8, zipSync } from 'fflate';
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib';
-import { exportNameBlockers } from './exportNames';
+import { handoffFiles, packageBlockers, packagePath } from './handoffFiles';
 
 export interface SourceDocument {
   record: DocumentRecord;
@@ -13,8 +13,8 @@ export interface SourceDocument {
 const DEMO_LABEL = 'SYNTHETIC-DEMO PACKAGE - TEST-ONLY';
 const TEST_LABEL = 'LOCAL PREPARATION PACKAGE - TEST-ONLY';
 const DISCLAIMER = 'Preparation reference only. Unresolved fixes and manual reviews may remain. This package does not establish completeness, code compliance, permit approval, or readiness for submission.';
-const EXPORT_PACK = { id: 'hnl-preparation-export', version: '1.0.0' } as const;
-const SCHEMA_VERSION = 2;
+const EXPORT_PACK = { id: 'hnl-preparation-export', version: '2.0.0' } as const;
+const SCHEMA_VERSION = 3;
 
 export interface BuildPackageOptions {
   syntheticDemo?: boolean;
@@ -58,10 +58,6 @@ function validateRecord(record: DocumentRecord, file: File): void {
   }
 }
 
-function uploadPath(record: DocumentRecord): string {
-  return `upload/${record.kind}/${record.exportName}`;
-}
-
 function findingFileName(finding: Finding, documents: DocumentRecord[]): string {
   return documents.find((record) => record.id === finding.fileId)?.exportName ?? '';
 }
@@ -79,7 +75,7 @@ function findingsCsv(documents: DocumentRecord[], findings: Finding[], label: st
   return [columns, ...rows].map((row) => row.map((cell) => csvCell(cell)).join(',')).join('\r\n') + '\r\n';
 }
 
-function guide(documents: DocumentRecord[], findings: Finding[], label: string): string {
+function guide(documents: DocumentRecord[], findings: Finding[], label: string, omitted: DocumentRecord[]): string {
   const fixes = findings.filter((finding) => finding.category === 'fix').length;
   const manual = findings.filter((finding) => finding.category === 'review' || finding.category === 'not-assessed').length;
   return [
@@ -90,6 +86,7 @@ function guide(documents: DocumentRecord[], findings: Finding[], label: string):
     'PACKAGE CONTENTS',
     'upload/plan/: unchanged source PDF bytes, with the selected export filenames.',
     'upload/supporting/: unchanged supporting PDF bytes, with the selected export filenames.',
+    'reference/source-pdfs/: original review-only PDFs for local reference.',
     'reference/: guide, findings CSV, manifest JSON, and readiness PDF. These are local reference reports, NOT upload candidates.',
     'The manifest distinguishes generated sample files from user-supplied test files. All sources are for local testing.',
     '',
@@ -107,7 +104,8 @@ function guide(documents: DocumentRecord[], findings: Finding[], label: string):
     'The PDF uses a restricted display alphabet. The manifest and CSV retain finding text. Full extracted page text stays in the browser workspace.',
     '',
     'SOURCE FILE MAP (original -> exported path; no portal assignments implied)',
-    ...documents.map((record) => `${JSON.stringify(record.originalName)} -> ${JSON.stringify(uploadPath(record))}; revision ${record.revision}; SHA-256 ${record.hash.toLowerCase()}`),
+    ...documents.map((record) => `${JSON.stringify(record.originalName)} -> ${JSON.stringify(packagePath(record))}; revision ${record.revision}; SHA-256 ${record.hash.toLowerCase()}`),
+    ...omitted.map((record) => `Omitted unreadable reference: ${JSON.stringify(record.originalName)}; revision ${record.revision}.`),
     '',
   ].join('\n');
 }
@@ -206,12 +204,16 @@ async function readinessReport(
   paragraph(`Demo rule pack: ${DEMO_RULE_PACK.id} ${DEMO_RULE_PACK.version}; export pack: ${EXPORT_PACK.version}.`);
   paragraph(DEMO_RULE_PACK.authority);
   paragraph('Display note: unsupported Unicode is replaced with ?, controls with spaces, and long fields may be abbreviated. See manifest.json and findings.csv for finding text.');
-  paragraph(`Sources: ${documents.length}; findings: ${findings.length}; fix: ${findings.filter((item) => item.category === 'fix').length}; manual review/not assessed: ${findings.filter((item) => item.category === 'review' || item.category === 'not-assessed').length}.`);
+  const { included, omitted } = handoffFiles(documents);
+  paragraph(`Packaged PDFs: ${included.length}; omitted references: ${omitted.length}; findings: ${findings.length}; fix: ${findings.filter((item) => item.category === 'fix').length}; manual review/not assessed: ${findings.filter((item) => item.category === 'review' || item.category === 'not-assessed').length}.`);
   paragraph('Use guide.txt to rehearse preparing individual files and verifying evidence. Keep this test set out of CivCheck and HNL Build.');
   paragraph('Source PDFs - unchanged bytes; not verified as submission-ready', true);
-  for (const record of documents) {
-    paragraph(`${uploadPath(record)} | original: ${record.originalName} | revision: ${record.revision} | pages: ${record.pages.length} | bytes: ${record.bytes}`);
+  for (const record of included) {
+    paragraph(`${packagePath(record)} | original: ${record.originalName} | revision: ${record.revision} | pages: ${record.pages.length} | bytes: ${record.bytes}`);
     paragraph(`SHA-256: ${record.hash.toLowerCase()}`);
+  }
+  for (const record of omitted) {
+    paragraph(`Omitted unreadable reference: ${record.originalName} | revision: ${record.revision}`);
   }
   paragraph('Findings - unresolved unless addressed outside this report', true);
   if (findings.length === 0) paragraph('No findings were supplied. This is not a determination of compliance or completeness.');
@@ -242,21 +244,23 @@ export async function buildPackage(
 ): Promise<Uint8Array> {
   if (documents.length === 0) throw new Error('At least one source document is required.');
   // Snapshot before awaiting hash reads so UI changes cannot mix two revisions.
-  const sources = documents.map(({ record, file, syntheticSample }) => ({
+  const snapshot = documents.map(({ record, file, syntheticSample }) => ({
     record: structuredClone(record), file, syntheticSample: syntheticSample ?? options?.syntheticDemo ?? true,
   }));
+  const snapshotFindings = structuredClone(findings);
+  const records = snapshot.map(({ record }) => record);
+  const [blocker] = packageBlockers(records);
+  if (blocker) throw new Error(blocker);
+  const byId = new Map<string, typeof snapshot[number]>();
+  for (const source of snapshot) {
+    const id = source.record.id;
+    if (byId.has(id)) throw new Error(`Duplicate source document ID: ${id}.`);
+    byId.set(id, source);
+  }
+  const { included, omitted } = handoffFiles(records);
+  const sources = included.map((record) => byId.get(record.id)!);
   const syntheticDemo = sources.some((source) => source.syntheticSample);
   const label = syntheticDemo ? DEMO_LABEL : TEST_LABEL;
-  const snapshotFindings = structuredClone(findings);
-  const records = sources.map(({ record }) => record);
-  const [nameBlocker] = exportNameBlockers(records);
-  if (nameBlocker) throw new Error(nameBlocker);
-  const ids = new Set<string>();
-  for (const { record, file } of sources) {
-    validateRecord(record, file);
-    if (ids.has(record.id)) throw new Error(`Duplicate source document ID: ${record.id}.`);
-    ids.add(record.id);
-  }
   for (const finding of snapshotFindings) {
     if (!finding.fileId) continue;
     const record = records.find((item) => item.id === finding.fileId);
@@ -269,11 +273,12 @@ export async function buildPackage(
   }
   const entries: Record<string, Uint8Array> = Object.create(null) as Record<string, Uint8Array>;
   for (const { record, file } of sources) {
+    validateRecord(record, file);
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (bytes.byteLength !== record.bytes || await sha256(bytes) !== record.hash.toLowerCase()) {
       throw new Error(`Source SHA-256 hash or bytes no longer match: ${record.originalName}. Reanalyze the file.`);
     }
-    entries[uploadPath(record)] = bytes;
+    entries[packagePath(record)] = bytes;
   }
   const exportedAt = new Date().toISOString();
   const sourceMetadata = sources.map(({ record, syntheticSample }) => ({
@@ -282,23 +287,26 @@ export async function buildPackage(
     originalName: record.originalName,
     exportName: record.exportName,
     kind: record.kind,
+    disposition: record.disposition ?? 'source',
     bytes: record.bytes,
     hash: record.hash.toLowerCase(),
     hashAlgorithm: 'SHA-256',
-    path: uploadPath(record),
+    path: packagePath(record),
     provenance: syntheticSample ? 'synthetic-sample' : 'user-supplied-test',
     pages: record.pages.map(({ page, widthInches, heightInches, rotation }) => ({ page, widthInches, heightInches, rotation })),
     sourceBytesPreserved: true,
   }));
+  const omittedReferences = omitted.map(({ id, originalName, revision }) => ({ id, originalName, revision, reason: 'Unreadable reference omitted by the preparer.' }));
   // Timestamps and the internal full-text layer do not identify a different export snapshot.
   const projectRevision = await sha256(strToU8(JSON.stringify({
     schemaVersion: SCHEMA_VERSION, projectName, rulePack: DEMO_RULE_PACK, exportPack: EXPORT_PACK,
-    documents: sourceMetadata, findings: snapshotFindings,
+    documents: sourceMetadata, omittedReferences, findings: snapshotFindings,
   })));
   const manifest = {
     schemaVersion: SCHEMA_VERSION,
     packageLabel: label,
     testOnly: true,
+    omittedReferences,
     syntheticDemo,
     disclaimer: DISCLAIMER,
     exportedAt,
@@ -325,10 +333,11 @@ export async function buildPackage(
       };
     }),
     findings: snapshotFindings,
-    referenceFiles: ['reference/guide.txt', 'reference/findings.csv', 'reference/manifest.json', 'reference/readiness.pdf'],
+    referenceFiles: ['reference/guide.txt', 'reference/findings.csv', 'reference/manifest.json', 'reference/readiness.pdf',
+      ...sourceMetadata.filter(({ disposition }) => disposition === 'reference').map(({ path }) => path)],
     referenceFilesAreUploadCandidates: false,
   };
-  entries['reference/guide.txt'] = strToU8(guide(records, snapshotFindings, label));
+  entries['reference/guide.txt'] = strToU8(guide(included, snapshotFindings, label, omitted));
   entries['reference/findings.csv'] = strToU8(findingsCsv(records, snapshotFindings, label));
   entries['reference/manifest.json'] = strToU8(JSON.stringify(manifest, null, 2));
   entries['reference/readiness.pdf'] = await readinessReport(projectName, records, snapshotFindings, exportedAt, projectRevision, label, syntheticDemo);

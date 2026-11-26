@@ -41,7 +41,7 @@ describe('preparation workspace', () => {
   it('explains invalid and duplicate export names before building the ZIP', () => {
     const duplicate = { ...title, id: 'copy', exportName: title.exportName.toUpperCase() };
     const records = [title, duplicate, bad];
-    render(<HandoffPanel items={records.map((record) => ({ record }))} summary={analyzeDocuments(records)} busy={false} exporting={false} onExport={vi.fn()} onBack={vi.fn()} onPreview={vi.fn()} />);
+    render(<HandoffPanel items={records.map((record) => ({ record }))} summary={analyzeDocuments(records)} busy={false} exporting={false} onExport={vi.fn()} onBack={vi.fn()} onFiles={vi.fn()} onPreview={vi.fn()} />);
     expect((screen.getByRole('button', { name: 'Download preparation ZIP' }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/duplicate export filename/i)).toBeTruthy();
     expect(screen.getByText(/unsafe export filename/i)).toBeTruthy();
@@ -49,14 +49,14 @@ describe('preparation workspace', () => {
 
   it('labels steps as local and does not allow empty findings/handoff navigation', () => {
     const navigate = vi.fn();
-    render(<StepNavigation current="files" hasFiles={false} fixCount={0} onNavigate={navigate} />);
+    render(<StepNavigation current="files" hasFiles={false} fixCount={0} classificationPendingCount={0} onNavigate={navigate} />);
     expect(screen.getByRole('navigation', { name: 'Local preparation steps' })).toBeTruthy();
     expect((screen.getByRole('button', { name: /Fix & review/ }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: /Set up/ }));
     expect(navigate).toHaveBeenCalledWith('setup');
   });
   it('updates sample milestones based on real current file data', () => {
-    const callbacks = { onAdd: vi.fn(), onReplace: vi.fn(), onRename: vi.fn(), onClassify: vi.fn(), onPreview: vi.fn(), onRemove: vi.fn(), onCorrectDemo: vi.fn(), onContinue: vi.fn() };
+    const callbacks = { onAdd: vi.fn(), onReplace: vi.fn(), onRename: vi.fn(), onClassify: vi.fn(), onOmitReference: vi.fn(), onPreview: vi.fn(), onRemove: vi.fn(), onUndoRemove: vi.fn(), onCancelReplacement: vi.fn(), onCorrectDemo: vi.fn(), onContinue: vi.fn() };
     const items = [{ record: title, demo: true }, { record: bad, demo: true }];
     const { rerender } = render(<FilesPanel {...callbacks} items={items} summary={analyzeDocuments(items.map((item) => item.record))} busy={false} exporting={false} guided highlightedId={null} />);
     fireEvent.click(screen.getAllByRole('button', { name: /Review filename/ })[1]);
@@ -78,7 +78,7 @@ describe('preparation workspace', () => {
   });
   it('blocks incomplete exports and separates reference material from uploads', () => {
     const record = { ...title, status: 'analyzing' as const };
-    render(<HandoffPanel items={[{ record }]} summary={analyzeDocuments([record])} busy={false} exporting={false} onExport={vi.fn()} onBack={vi.fn()} onPreview={vi.fn()} />);
+    render(<HandoffPanel items={[{ record }]} summary={analyzeDocuments([record])} busy={false} exporting={false} onExport={vi.fn()} onBack={vi.fn()} onFiles={vi.fn()} onPreview={vi.fn()} />);
     expect((screen.getByRole('button', { name: 'Download preparation ZIP' }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole('heading', { name: 'upload/' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'reference/' })).toBeTruthy();

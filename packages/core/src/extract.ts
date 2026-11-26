@@ -288,12 +288,15 @@ function matchChecklistRowStart(line: string): string | undefined {
 }
 
 /** Parse CivCheck downloadable code-checklist PDFs when included in the workspace. */
+export function looksLikeCodeChecklist(pages: DocumentRecord['pages']): boolean {
+  return pages.some(({ text }) => /\bREVIEW\s+TYPE\b[\s\S]{0,60}\bCHECKLIST\s+SUMMARY\b/i.test(text));
+}
+
 export function parseCodeChecklists(documents: DocumentRecord[]): ChecklistItem[] {
   const items: ChecklistItem[] = [];
   for (const doc of documents) {
     if (doc.status !== 'complete') continue;
-    const fullText = doc.pages.map((page) => page.text).join('\n');
-    if (!/\bREVIEW\s+TYPE\b[\s\S]{0,60}\bCHECKLIST\s+SUMMARY\b/i.test(fullText)) continue;
+    if (!looksLikeCodeChecklist(doc.pages)) continue;
 
     for (const page of doc.pages) {
       const rawLines = page.text.split('\n').map((line) => cleanLine(line)).filter(Boolean);
@@ -349,26 +352,44 @@ export function parseCodeChecklists(documents: DocumentRecord[]): ChecklistItem[
   return items;
 }
 
-/** Extract sheet numbers listed in an index-to-drawings block (e.g. on 000 or A001). */
-export function extractSheetIndexEntries(documents: DocumentRecord[]): Array<{ sheetId: string; fileId: string; fileName: string; page: number }> {
-  const found: Array<{ sheetId: string; fileId: string; fileName: string; page: number }> = [];
+type IndexEntry = { sheetId: string; fileId: string; fileName: string; page: number };
+const INDEX_HEADER = /^(?:sheet index|drawing index|index to drawings|(?:drawing|sheet) list|index of (?:drawings|sheets))\s*:?\s*$/i;
+const COLUMN_HEADER = /^(?:(?:sheet|sht|drawing)\s+(?:no\.?|number|title)|description)(?:\s|$)/i;
+const DISCIPLINE_HEADER = /^(?:architectural|structural|civil|landscape|mechanical|electrical|plumbing|fire protection|general|demolition)(?:\s+(?:drawings|sheets|plans))?\s*:?\s*$/i;
+const END_HEADER = /^(?:general notes|project data(?: table)?|scope of work|abbreviations|symbols(?: legend)?|project information|code analysis|code references?)\s*:?\s*$/i;
+
+export function inspectSheetIndex(documents: DocumentRecord[]): { entries: IndexEntry[]; partial: boolean } {
+  const entries: IndexEntry[] = [];
+  let partial = false;
   for (const doc of documents) {
     if (doc.kind !== 'plan' || doc.status !== 'complete') continue;
     for (const page of doc.pages) {
       const lines = page.text.split('\n').map((line) => line.trim());
-      const start = lines.findIndex((line) => /^(?:sheet index|drawing index|index to drawings|(?:drawing|sheet) list|index of (?:drawings|sheets))\s*:?\s*$/i.test(line));
+      const start = lines.findIndex((line) => INDEX_HEADER.test(line));
       if (start < 0) continue;
       const codes = new Set<string>();
-      for (const line of lines.slice(start + 1, start + 122)) {
-        if (!line || (!codes.size && /^(?:(?:sheet|sht|drawing)\s+(?:no\.?|number|title)|description)\b/i.test(line))) continue;
+      const rows = lines.slice(start + 1, start + 122);
+      let ended = false;
+      let headingNeedsRows = false;
+      for (const line of rows) {
+        if (END_HEADER.test(line)) { ended = true; break; }
+        if (!line || COLUMN_HEADER.test(line) || INDEX_HEADER.test(line)) continue;
+        if (DISCIPLINE_HEADER.test(line)) { headingNeedsRows = true; continue; }
         const row = /^([A-Z]{0,2}\d{3})(?:(?:\s*[-–—]\s*|\s+)[A-Z].*)?$/i.exec(line);
-        if (!row || /\b(?:building code|code section|code reference|IRC|IBC)\b/i.test(line)) break;
+        if (!row || /\b(?:building code|code section|code reference|IRC|IBC)\b/i.test(line)) { partial = true; break; }
+        headingNeedsRows = false;
         codes.add(row[1].toUpperCase());
       }
-      for (const sheetId of codes) found.push({ sheetId, fileId: doc.id, fileName: doc.exportName, page: page.page });
+      if (!codes.size || headingNeedsRows || (!ended && lines.length > start + 122)) partial = true;
+      for (const sheetId of codes) entries.push({ sheetId, fileId: doc.id, fileName: doc.exportName, page: page.page });
     }
   }
-  return found;
+  return { entries, partial };
+}
+
+/** Extract recognizable rows from drawing-index pages. */
+export function extractSheetIndexEntries(documents: DocumentRecord[]): IndexEntry[] {
+  return inspectSheetIndex(documents).entries;
 }
 
 /** Extract Archicad/CAD plot date strings from a document. */

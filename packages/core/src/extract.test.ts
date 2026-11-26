@@ -25,6 +25,31 @@ function doc(overrides: Partial<DocumentRecord> = {}): DocumentRecord {
 }
 
 describe('real-document extraction and analysis', () => {
+  it('reads through discipline headings and distinguishes a missing sheet from an unmatched sheet', () => {
+    const title = doc();
+    title.pages[0].text = 'Title Sheet\nSheet Index\n000 Title Sheet\nStructural\nSheet No. Description\nS101 Foundation Plan\nGeneral Notes';
+    const complete = analyzeDocuments([title]);
+    expect(complete.sheetIndexCoverage).toBe('compared');
+    expect(complete.findings).toContainEqual(expect.objectContaining({ ruleId: 'sheet-index-missing-files', page: 1 }));
+    const unknown = doc({ id: 'unknown', exportName: 'Foundation Drawing.pdf' });
+    const partial = analyzeDocuments([title, unknown]);
+    expect(partial.sheetIndexCoverage).toBe('partial');
+    expect(partial.findings).toContainEqual(expect.objectContaining({ ruleId: 'sheet-index-unmatched-files', page: 1 }));
+    expect(partial.findings.find((finding) => finding.ruleId === 'sheet-index-missing-files')).toBeUndefined();
+  });
+
+  it('flags duplicate sheet identifiers and withholds an extra-sheet conclusion from a partial index', () => {
+    const title = doc();
+    title.pages[0].text = 'Sheet index\n000 Title Sheet\nA101 Floor Plan\nUNRECOGNIZED ROW';
+    const floor = doc({ id: 'floor', exportName: 'A101 Floor Plan.pdf' });
+    const duplicate = doc({ id: 'duplicate', exportName: 'A101 Floor Plan Revision.pdf' });
+    const other = doc({ id: 'other', exportName: 'A102 Roof Plan.pdf' });
+    const summary = analyzeDocuments([title, floor, duplicate, other]);
+    expect(summary.sheetIndexCoverage).toBe('partial');
+    expect(summary.findings).toContainEqual(expect.objectContaining({ ruleId: 'duplicate-sheet-id' }));
+    expect(summary.findings.find((finding) => finding.ruleId === 'sheet-index-extra-files')).toBeUndefined();
+  });
+
   it('uses explicit owner and building-area labels and links each distinct value to the source revision', () => {
     const source = doc({ revision: 3 });
     source.pages[0].text = [

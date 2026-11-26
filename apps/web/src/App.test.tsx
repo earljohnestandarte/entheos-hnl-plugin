@@ -41,17 +41,14 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function prepareStart(path: 'sample' | 'test' = 'sample', name = 'Integration set') {
-  fireEvent.click(screen.getByRole('button', { name: /Get started/ }));
-  fireEvent.click(screen.getByRole('radio', { name: path === 'test' ? /Use my test PDFs/ : /Try the guided sample/ }));
-  fireEvent.click(screen.getByRole('button', { name: /^Continue/ }));
-  fireEvent.change(screen.getByLabelText('Preparation set name'), { target: { value: name } });
+function prepareStart(name = 'Integration set') {
+  fireEvent.change(screen.getByLabelText(/Preparation set name/), { target: { value: name } });
   fireEvent.click(screen.getByRole('checkbox'));
 }
 
 async function startWorkspace(path: 'sample' | 'test' = 'sample', name = 'Integration set') {
-  prepareStart(path, name);
-  fireEvent.click(screen.getByRole('button', { name: path === 'sample' ? /Start guided sample/ : /Open workspace/ }));
+  prepareStart(name);
+  fireEvent.click(screen.getByRole('button', { name: path === 'sample' ? /Try the guided sample/ : /Upload a test plan set/ }));
   await screen.findByRole('navigation', { name: 'Local preparation steps' });
 }
 
@@ -137,10 +134,22 @@ describe('App preparation journeys', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expectFiles(names);
     fireEvent.click(screen.getByRole('button', { name: /How it works/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Back to my workspace' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close guide' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expectFiles(names);
     expect(readPdf).toHaveBeenCalledTimes(3);
+  });
+
+  it('rejects case-insensitive filename conflicts in the editor', async () => {
+    render(<App />);
+    await startWorkspace();
+    const floor = within(screen.getByRole('article', { name: floorName }));
+    fireEvent.click(floor.getByRole('button', { name: /Review filename/ }));
+    fireEvent.change(floor.getByRole('textbox', { name: 'Proposed export name' }), {
+      target: { value: titleName.toUpperCase().replace('.PDF', '.pdf') },
+    });
+    expect((floor.getByRole('button', { name: 'Accept name' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(floor.getByText(/Another file already uses this export name/)).toBeTruthy();
   });
 
   it('renames setup and navigates back to files without losing sources or classifications', async () => {
@@ -173,13 +182,11 @@ describe('App preparation journeys', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear and start again' }));
     expect(screen.queryByRole('navigation', { name: 'Local preparation steps' })).toBeNull();
     expect(screen.queryByRole('article')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /Get started/ }));
-    expect((screen.getByRole('radio', { name: /Try the guided sample/ }) as HTMLInputElement).checked).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: /^Continue/ }));
-    expect((screen.getByLabelText('Preparation set name') as HTMLInputElement).value).toBe('My preparation set');
+    expect(screen.getByRole('button', { name: /Upload a test plan set/ })).toBeTruthy();
+    expect((screen.getByLabelText(/Preparation set name/) as HTMLInputElement).value).toBe('My preparation set');
     expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
     fireEvent.click(screen.getByRole('checkbox'));
-    fireEvent.click(screen.getByRole('button', { name: /Start guided sample/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Try the guided sample/ }));
     await screen.findByRole('navigation', { name: 'Local preparation steps' });
     expectFiles();
     expect(createDemoFiles).toHaveBeenCalledTimes(2);
@@ -191,7 +198,7 @@ describe('App preparation journeys', () => {
     vi.mocked(readPdf).mockReturnValueOnce(parsing.promise);
     render(<App />);
     prepareStart();
-    fireEvent.click(screen.getByRole('button', { name: /Start guided sample/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Try the guided sample/ }));
     await waitFor(() => expect(readPdf).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole('navigation', { name: 'Local preparation steps' })).toBeNull();
     expect((screen.getByRole('button', { name: /Preparing sample/ }) as HTMLButtonElement).disabled).toBe(true);
@@ -199,7 +206,7 @@ describe('App preparation journeys', () => {
     await screen.findByRole('navigation', { name: 'Local preparation steps' });
     expectFiles();
     expect(readPdf).toHaveBeenCalledTimes(3);
-    expect(screen.queryByRole('button', { name: /Get started/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Try the guided sample/ })).toBeNull();
   });
 
   it('finishes an asynchronous sample correction without resetting navigation or the file set', async () => {
@@ -209,8 +216,8 @@ describe('App preparation journeys', () => {
     vi.mocked(readPdf).mockReturnValueOnce(parsing.promise);
     fireEvent.click(screen.getByRole('button', { name: /Use corrected sample PDF/ }));
     await waitFor(() => expect(readPdf).toHaveBeenCalledTimes(4));
-    expectFiles([titleName, correctedName, supportingName]);
-    expect(within(screen.getByRole('article', { name: correctedName })).getByText(/Reading PDF/)).toBeTruthy();
+    expectFiles();
+    expect(within(screen.getByRole('article', { name: floorName })).getByText(/Checking replacement/)).toBeTruthy();
     navigate(/Set up/);
     await act(async () => { parsing.resolve(metadata(correctedName)); });
     await waitFor(() => expect((screen.getByRole('button', { name: /Continue to files/ }) as HTMLButtonElement).disabled).toBe(false));
@@ -251,7 +258,7 @@ describe('App preparation journeys', () => {
     vi.mocked(createDemoFiles).mockReturnValueOnce(generation.promise);
     render(<App />);
     prepareStart();
-    const start = screen.getByRole('button', { name: /Start guided sample/ });
+    const start = screen.getByRole('button', { name: /Try the guided sample/ });
     fireEvent.click(start);
     fireEvent.click(start);
     await waitFor(() => expect(createDemoFiles).toHaveBeenCalledTimes(1));

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { DEMO_RULE_PACK, type CheckSummary, type DocumentRecord, type Finding, type FindingCategory } from '@hnl/contracts';
 import { IconCheck, IconCopy, IconEye } from './Icons';
 
@@ -124,7 +124,8 @@ export function FindingsPanel({
   initialFilter = 'all',
 }: FindingsPanelProps) {
   const [filter, setFilter] = useState<FindingCategory | 'all'>(initialFilter);
-  const [tab, setTab] = useState<FindingsTab>('checklist');
+  const [requestedTab, setTab] = useState<FindingsTab>('checklist');
+  const tabSetId = useId();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [copyError, setCopyError] = useState(false);
   const [valueSelections, setValueSelections] = useState<Record<string, { signature: string; index: number }>>({});
@@ -135,6 +136,39 @@ export function FindingsPanel({
   const hasValues = foundValues.length > 0;
   const hasMapping = summary.assignments.some((slot) => slot.assignedFiles.length > 0);
   const hasChecklist = summary.checklistItems.length > 0;
+  const tabs: Array<{ id: FindingsTab; label: string }> = [
+    { id: 'checklist', label: `Findings (${summary.findings.length})` },
+  ];
+  if (hasValues) tabs.push({ id: 'values', label: `Extracted values (${foundValues.length})` });
+  if (hasMapping) tabs.push({ id: 'mapping', label: 'Document map' });
+  if (hasChecklist) tabs.push({ id: 'imported', label: `Code checklist (${summary.checklistItems.length})` });
+  const tab = tabs.some(({ id }) => id === requestedTab) ? requestedTab : 'checklist';
+
+  function tabPanel(id: FindingsTab) {
+    return {
+      id: `${tabSetId}-panel-${id}`,
+      role: tabs.length > 1 ? 'tabpanel' : undefined,
+      'aria-labelledby': tabs.length > 1 ? `${tabSetId}-tab-${id}` : undefined,
+      hidden: tab !== id,
+      tabIndex: tabs.length > 1 && tab === id ? 0 : undefined,
+    };
+  }
+
+  function navigateTabs(event: KeyboardEvent<HTMLDivElement>) {
+    const index = tabs.findIndex(({ id }) => id === tab);
+    let next: number;
+    switch (event.key) {
+      case 'ArrowRight': next = (index + 1) % tabs.length; break;
+      case 'ArrowLeft': next = (index + tabs.length - 1) % tabs.length; break;
+      case 'Home': next = 0; break;
+      case 'End': next = tabs.length - 1; break;
+      default: return;
+    }
+    event.preventDefault();
+    const { id } = tabs[next];
+    setTab(id);
+    document.getElementById(`${tabSetId}-tab-${id}`)?.focus();
+  }
   const visibleCategories = categories.filter((category) => {
     if (filter !== 'all') return filter === category;
     if (category === 'fix' && summary.fixCount === 0) return false;
@@ -187,6 +221,8 @@ export function FindingsPanel({
         <>
           <div className={`status-callout ${summary.formatChecksComplete ? 'is-ok' : 'is-warn'}`}>
             <p>{summary.label}. Independent local preparation check, not CivCheck approval or proof of submission readiness.</p>
+            <p>Sheet index · {summary.sheetIndexCoverage === 'compared' ? 'Compared'
+              : summary.sheetIndexCoverage === 'partial' ? 'Partially compared' : 'Needs manual review'}</p>
           </div>
           {items.some(({ record }) => record.status !== 'complete') && (
             <p className="fix-hint">Some files are still processing or could not be read. Their contents have not been assessed.</p>
@@ -203,54 +239,19 @@ export function FindingsPanel({
             </div>
           )}
 
-          {(hasValues || hasMapping || hasChecklist) && (
-            <div className="view-tabs" role="tablist" aria-label="Findings views">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab === 'checklist'}
-                className={`view-tab ${tab === 'checklist' ? 'is-active' : ''}`}
-                onClick={() => setTab('checklist')}
-              >
-                Findings ({summary.findings.length})
-              </button>
-              {hasValues && (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === 'values'}
-                  className={`view-tab ${tab === 'values' ? 'is-active' : ''}`}
-                  onClick={() => setTab('values')}
-                >
-                  Extracted values ({foundValues.length})
+          {tabs.length > 1 && (
+            <div className="view-tabs" role="tablist" aria-label="Findings views" onKeyDown={navigateTabs}>
+              {tabs.map(({ id, label }) => (
+                <button key={id} type="button" role="tab" id={`${tabSetId}-tab-${id}`}
+                  aria-controls={`${tabSetId}-panel-${id}`} aria-selected={tab === id} tabIndex={tab === id ? 0 : -1}
+                  className={`view-tab ${tab === id ? 'is-active' : ''}`} onClick={() => setTab(id)}>
+                  {label}
                 </button>
-              )}
-              {hasMapping && (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === 'mapping'}
-                  className={`view-tab ${tab === 'mapping' ? 'is-active' : ''}`}
-                  onClick={() => setTab('mapping')}
-                >
-                  Document map
-                </button>
-              )}
-              {hasChecklist && (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === 'imported'}
-                  className={`view-tab ${tab === 'imported' ? 'is-active' : ''}`}
-                  onClick={() => setTab('imported')}
-                >
-                  Code checklist ({summary.checklistItems.length})
-                </button>
-              )}
+              ))}
             </div>
           )}
 
-          {tab === 'checklist' && (
+          <div {...tabPanel('checklist')}>{tab === 'checklist' && (
             <>
               <div className="filter-bar" role="group" aria-label="Filter findings">
                 <button
@@ -352,9 +353,9 @@ export function FindingsPanel({
                 );
               })}
             </>
-          )}
+          )}</div>
 
-          {tab === 'values' && hasValues && (
+          {hasValues && <div {...tabPanel('values')}>{tab === 'values' && (
             <section className="insights-section" aria-label="Extracted project values">
               <div className="finding-group-head">
                 <h3>Extracted project values</h3>
@@ -420,9 +421,9 @@ export function FindingsPanel({
                 })}
               </div>
             </section>
-          )}
+          )}</div>}
 
-          {tab === 'mapping' && hasMapping && (
+          {hasMapping && <div {...tabPanel('mapping')}>{tab === 'mapping' && (
             <section className="insights-section" aria-label="Document type preview">
               <h3>Document type preview</h3>
               <p className="muted">Suggested CivCheck document-type mapping from filenames and extracted text. Confirm manually in Document review.</p>
@@ -439,9 +440,9 @@ export function FindingsPanel({
                 ))}
               </div>
             </section>
-          )}
+          )}</div>}
 
-          {tab === 'imported' && hasChecklist && (
+          {hasChecklist && <div {...tabPanel('imported')}>{tab === 'imported' && (
             <section className="insights-section" aria-label="Imported CivCheck code checklist">
               <div className="finding-group-head">
                 <h3>Imported CivCheck checklist</h3>
@@ -502,7 +503,7 @@ export function FindingsPanel({
                 </div>
               )}
             </section>
-          )}
+          )}</div>}
 
           <div className="panel-footer">
             <p className="muted small">Continuing does not resolve findings. Unresolved items remain in your reference report.</p>

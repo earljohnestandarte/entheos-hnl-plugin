@@ -1,5 +1,5 @@
 import type { CheckSummary, DocumentRecord } from '@hnl/contracts';
-import { exportNameBlockers } from '../lib/exportNames';
+import { handoffFiles, packageBlockers } from '../lib/handoffFiles';
 import { CivCheckChecklist } from './CivCheckChecklist';
 import { IconDownload } from './Icons';
 
@@ -10,6 +10,7 @@ export interface HandoffPanelProps {
   busy: boolean;
   onExport: () => void;
   onBack: () => void;
+  onFiles: () => void;
   onPreview: (fileId: string, page: number) => void;
 }
 
@@ -20,16 +21,17 @@ export function HandoffPanel({
   busy,
   onExport,
   onBack,
+  onFiles,
   onPreview,
 }: HandoffPanelProps) {
   const records = items.map(({ record }) => record);
-  const planCount = items.filter(({ record }) => record.kind === 'plan').length;
-  const supportingCount = items.filter(({ record }) => record.kind === 'supporting').length;
-  const incompleteCount = items.filter(({ record }) => record.status !== 'complete').length;
-  const nameBlockers = exportNameBlockers(records);
-  const canExport = items.length > 0 && incompleteCount === 0 && !busy && !exporting && nameBlockers.length === 0;
+  const { sources, references } = handoffFiles(records);
+  const planCount = sources.filter((record) => record.kind === 'plan').length;
+  const supportingCount = sources.length - planCount;
+  const blockers = packageBlockers(records);
+  const canExport = blockers.length === 0 && !busy && !exporting;
   const notAssessedCount = summary.findings.filter((finding) => finding.category === 'not-assessed').length;
-  const isReadyPeak = items.length > 0 && incompleteCount === 0 && summary.formatChecksComplete && nameBlockers.length === 0;
+  const isReadyPeak = summary.formatChecksComplete && blockers.length === 0;
 
   return (
     <section className="panel surface-card" aria-label="CivCheck handoff">
@@ -38,7 +40,7 @@ export function HandoffPanel({
           <h2>Prepare the test handoff</h2>
         </div>
         <span className="panel-meta">
-          {items.length} {items.length === 1 ? 'source file' : 'source files'}
+          {sources.length} {sources.length === 1 ? 'source file' : 'source files'}
         </span>
       </div>
 
@@ -46,24 +48,27 @@ export function HandoffPanel({
         <strong>
           {!items.length
             ? 'Add PDFs before building a package.'
-            : incompleteCount > 0
-              ? 'File analysis is incomplete. Export is unavailable.'
-              : summary.label}
+            : summary.label}
         </strong>
         <p>
-          {summary.fixCount} unresolved {summary.fixCount === 1 ? 'fix' : 'fixes'}, {summary.reviewCount} manual{' '}
-          {summary.reviewCount === 1 ? 'review' : 'reviews'}, and {notAssessedCount} not assessed remain in the reference report. Even completed file checks do not establish that your set is complete or ready to submit.
+          {summary.fixCount} open {summary.fixCount === 1 ? 'fix' : 'fixes'}, {summary.reviewCount} requiring manual review, and {notAssessedCount} not assessed.
+          {summary.classificationPendingCount > 0 && ` Confirm the type of ${summary.classificationPendingCount} ${summary.classificationPendingCount === 1 ? 'file' : 'files'}.`}
         </p>
         <p className="muted">Use synthetic or approved test PDFs only. Downloads are unencrypted copies.</p>
+        {items.length > 0 && <div className="action-row">
+          {blockers.length > 0 && <button type="button" className="button ghost sm" onClick={onFiles}>Review files</button>}
+          {summary.reviewCount + summary.fixCount + notAssessedCount > 0 &&
+            <button type="button" className="button ghost sm" onClick={onBack}>See open findings</button>}
+        </div>}
       </div>
 
-      {items.length > 0 && <CivCheckChecklist records={records} summary={summary} onPreview={onPreview} />}
+      {items.length > 0 && <CivCheckChecklist records={records} summary={summary} onPreview={onPreview} canCopy={canExport} />}
 
       <div className="package-grid">
         <article className="package-card">
           <div className="package-card-head">
             <h3>upload/</h3>
-            <span className="panel-meta">{items.length} source PDFs</span>
+            <span className="panel-meta">{sources.length} source PDFs</span>
           </div>
           <p>Individual source PDFs with accepted export filenames, organized into:</p>
           <ul>
@@ -76,13 +81,14 @@ export function HandoffPanel({
         <article className="package-card">
           <div className="package-card-head">
             <h3>reference/</h3>
-            <span className="panel-meta">4 reference files</span>
+            <span className="panel-meta">{4 + references.length} reference files</span>
           </div>
           <ul>
             <li><strong>guide.txt</strong>: manual handoff steps</li>
             <li><strong>findings.csv</strong>: findings and next actions</li>
             <li><strong>manifest.json</strong>: file map, revisions, and hashes</li>
             <li><strong>readiness.pdf</strong>: preparation reference, not a readiness certificate</li>
+            {references.length > 0 && <li><strong>source-pdfs/</strong>: {references.length} review-only {references.length === 1 ? 'PDF' : 'PDFs'}</li>}
           </ul>
           <p className="muted">Do not upload these reports or any test PDF to CivCheck.</p>
         </article>
@@ -94,16 +100,10 @@ export function HandoffPanel({
           <p>Return to Add plans to add and classify your PDFs, then review their findings.</p>
         </div>
       )}
-      {incompleteCount > 0 && (
-        <p className="notice" role="status">
-          {incompleteCount} {incompleteCount === 1 ? 'file is' : 'files are'} still processing or could not be assessed.
-          {' '}Wait for analysis, or replace or remove unreadable files in Add plans. No source is silently omitted.
-        </p>
-      )}
-      {nameBlockers.length > 0 && (
+      {items.length > 0 && blockers.length > 0 && (
         <div className="notice" role="status">
-          <strong>Fix export names in Add plans</strong>
-          <ul>{nameBlockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul>
+          <strong>Resolve package blockers in Add plans</strong>
+          <ul>{blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul>
         </div>
       )}
 

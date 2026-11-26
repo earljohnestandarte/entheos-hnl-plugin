@@ -1,13 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { suggestFilename } from '@hnl/core';
 import type { CheckSummary, DocumentRecord, FileKind } from '@hnl/contracts';
 import { IconEye, IconReplace, IconTrash, SheetThumb } from './Icons';
+import { exportNameIssue } from '../lib/exportNames';
+import { handoffFiles } from '../lib/handoffFiles';
 
 interface FileItem { record: DocumentRecord; demo: boolean }
 interface Props {
   items: FileItem[]; summary: CheckSummary; busy: boolean; exporting: boolean; guided: boolean; highlightedId: string | null;
   onAdd: (files: File[]) => void; onReplace: (id: string, file: File) => void;
-  onRename: (id: string, name: string) => void; onClassify: (id: string, kind: FileKind) => void;
+  onRename: (id: string, name: string) => void; onClassify: (id: string, kind: FileKind | 'reference') => void;
+  onOmitReference: (id: string) => void;
+  replacingId?: string | null;
+  removedName?: string;
+  onCancelReplacement: () => void;
+  onUndoRemove: () => void;
   onPreview: (id: string) => void; onRemove: (id: string) => void; onCorrectDemo: (id: string) => void; onContinue: () => void;
 }
 const sizeLabel = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
@@ -41,9 +48,13 @@ async function collectDroppedFiles(dataTransfer: DataTransfer): Promise<File[]> 
   return nested.flat();
 }
 
-function FilenameEditor({ record, busy, onRename }: { record: DocumentRecord; busy: boolean; onRename: (name: string) => void }) {
+function FilenameEditor({ record, records, busy, onRename }: {
+  record: DocumentRecord; records: readonly DocumentRecord[]; busy: boolean; onRename: (name: string) => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(record.exportName);
+  const errorId = useId();
+  const issue = exportNameIssue(name.trim(), records, record.id);
   if (!editing) {
     return (
       <div className="filename-actions">
@@ -59,15 +70,20 @@ function FilenameEditor({ record, busy, onRename }: { record: DocumentRecord; bu
     );
   }
   return (
-    <form className="filename-editor" onSubmit={(event) => { event.preventDefault(); if (name.trim()) { onRename(name.trim()); setEditing(false); } }}>
+    <form className="filename-editor" onSubmit={(event) => {
+      event.preventDefault();
+      if (!busy && !issue) { onRename(name.trim()); setEditing(false); }
+    }}>
       <label className="field-label">
         Proposed export name
-        <input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} autoFocus disabled={busy} />
+        <input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} autoFocus disabled={busy}
+          aria-invalid={!!issue} aria-describedby={issue ? errorId : undefined} />
       </label>
       <p className="field-hint">Current: {record.exportName}. Confirm the sheet number; only the exported filename changes.</p>
+      {issue && <p className="error-text" id={errorId} role="status">{issue}</p>}
       <div className="action-row">
         <button type="button" className="button secondary sm" onClick={() => setEditing(false)}>Cancel</button>
-        <button type="submit" className="button primary sm" disabled={busy || !name.trim()}>Accept name</button>
+        <button type="submit" className="button primary sm" disabled={busy || !!issue}>Accept name</button>
       </div>
     </form>
   );
@@ -75,6 +91,7 @@ function FilenameEditor({ record, busy, onRename }: { record: DocumentRecord; bu
 
 export function FilesPanel(props: Props) {
   const { items, summary, busy, exporting, guided, highlightedId } = props;
+  const nameRecords = handoffFiles(items.map((item) => item.record)).included;
   const picker = useRef<HTMLInputElement>(null);
   const folderPicker = useRef<HTMLInputElement>(null);
   const replacement = useRef<HTMLInputElement>(null);
@@ -162,6 +179,10 @@ export function FilesPanel(props: Props) {
         <input hidden type="file" ref={replacement} accept=".pdf,application/pdf" aria-label="Replacement PDF" onChange={(event) => { const file = event.target.files?.[0]; if (file && replaceId.current) props.onReplace(replaceId.current, file); event.target.value = ''; }} />
 
         {skippedNotice && <p className="field-hint" role="status">{skippedNotice}</p>}
+        {props.removedName && <div className="notice">
+          <span>Removed {props.removedName}.</span>{' '}
+          <button type="button" className="button ghost sm" disabled={busy} onClick={props.onUndoRemove}>Undo remove</button>
+        </div>}
         <p className="classification-hint">
           <strong>Plan</strong> is a drawing sheet. <strong>Supporting document</strong> covers multi-page forms, checklists, and reports.
         </p>
@@ -185,7 +206,7 @@ export function FilesPanel(props: Props) {
             const isRenamed = record.exportName !== record.originalName;
             const statusTone = record.status === 'analyzing'
               ? 'badge-info'
-              : record.status !== 'complete' || count > 0
+              : record.status !== 'complete' || count > 0 || record.typeReview
                 ? 'badge-warning'
                 : 'badge-green';
             return (
@@ -215,22 +236,42 @@ export function FilesPanel(props: Props) {
                     </p>
                   </div>
                   <span className={`pill-badge ${statusTone}`}>
-                    {record.status === 'analyzing' ? 'Processing' : record.status !== 'complete' ? 'Needs attention' : count ? `${count} ${count === 1 ? 'fix' : 'fixes'}` : 'Checked'}
+                    {record.status === 'analyzing' ? 'Processing' : record.status !== 'complete' ? 'Needs attention'
+                      : record.typeReview ? 'Confirm type' : count ? `${count} ${count === 1 ? 'fix' : 'fixes'}`
+                      : record.disposition === 'reference' ? 'Review only' : 'Checked'}
                   </span>
                 </div>
 
                 {record.error && <p className="error-text">{record.error}</p>}
+                {record.typeReview && <p className="field-hint">{record.typeReview}</p>}
+                {!record.typeReview && record.kindReason && <p className="field-hint">{record.kindReason}</p>}
+                {record.omitFromPackage && <p className="field-hint">This review reference will be listed as omitted in the ZIP.</p>}
+                {props.replacingId === record.id && <div className="notice">
+                  <span role="status">Checking replacement… The current revision is still available.</span>{' '}
+                  <button type="button" className="button ghost sm" onClick={props.onCancelReplacement}>Cancel replacement</button>
+                </div>}
 
                 <div className="file-controls">
                   <div className="file-controls-left">
                     <label className="inline-label">
                       Classification
-                      <select aria-label={`File type for ${record.originalName}`} disabled={busy} value={record.kind} onChange={(event) => props.onClassify(record.id, event.target.value as FileKind)}>
+                      <select aria-label={`File type for ${record.originalName}`} disabled={busy}
+                        value={record.typeReview ? '' : record.disposition === 'reference' ? 'reference' : record.kind}
+                        onChange={(event) => props.onClassify(record.id, event.target.value as FileKind | 'reference')}>
+                        {record.typeReview && <option value="" disabled>Confirm file type</option>}
                         <option value="plan">Plan</option>
                         <option value="supporting">Supporting document</option>
+                        <option value="reference">Review-only reference</option>
                       </select>
                     </label>
-                    <FilenameEditor key={`${record.revision}-${record.exportName}`} record={record} busy={busy} onRename={(name) => props.onRename(record.id, name)} />
+                    {record.disposition === 'reference' && (record.status === 'unsupported' || record.status === 'error') && (
+                      <button type="button" className="button ghost sm" disabled={busy} onClick={() => props.onOmitReference(record.id)}>
+                        {record.omitFromPackage ? 'Include in ZIP' : 'Omit from ZIP'}
+                      </button>
+                    )}
+                    <FilenameEditor key={`${record.revision}-${record.exportName}`} record={record}
+                      records={nameRecords}
+                      busy={busy} onRename={(name) => props.onRename(record.id, name)} />
                     {demo && /^A101/.test(record.originalName) && record.pages.some((page) => page.heightInches > page.widthInches) && (
                       <button type="button" className="button sample-action" disabled={busy} onClick={() => props.onCorrectDemo(record.id)}>
                         Use corrected sample PDF

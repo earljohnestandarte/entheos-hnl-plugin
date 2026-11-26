@@ -10,7 +10,7 @@ import {
 import {
   extractPlotDate,
   extractProjectValues,
-  extractSheetIndexEntries,
+  inspectSheetIndex,
   isTitleSheetName,
   parseCodeChecklists,
   suggestDocumentAssignments,
@@ -21,6 +21,7 @@ export {
   extractProjectValues,
   extractSheetIndexEntries,
   isTitleSheetName,
+  looksLikeCodeChecklist,
   parseCodeChecklists,
   suggestDocumentAssignments,
 } from './extract';
@@ -31,6 +32,10 @@ const PDF_EXTENSION = /\.pdf$/i;
 const PLAN_NAME = /^([a-z]{0,2}\d{3})(?: - | )([^\s-].*)\.pdf$/i;
 const WINDOWS_DEVICE = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 const SOURCE = `${DEMO_RULE_PACK.source}; ${DEMO_RULE_PACK.id} v${DEMO_RULE_PACK.version}`;
+
+export function sheetIdentifier(filename: string): string | undefined {
+  return /^[a-z]{0,2}\d{3}(?=$|[ ._&-])/i.exec(filename)?.[0].toUpperCase();
+}
 
 function isReservedName(stem: string): boolean {
   return WINDOWS_DEVICE.test(stem.split('.')[0].trim());
@@ -129,7 +134,10 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
     'Project scope, required supporting documents, drawing meaning, calculations, and applicable code requirements are not fully evaluated locally.',
     'Have a qualified reviewer determine the applicable scope, verify the full document set, and review technical/code requirements.');
 
-  const plans = documents.filter(file => file.kind === 'plan');
+  const sources = documents.filter((file) => file.disposition !== 'reference');
+  const classifiedSources = sources.filter((file) => !file.typeReview);
+  const classificationPendingCount = documents.filter((file) => file.typeReview).length;
+  const plans = classifiedSources.filter(file => file.kind === 'plan');
   const titlePlans = plans.filter(file => isTitleSheetName(file.exportName));
   const titlePlan = titlePlans[0];
   if (plans.length === 0) {
@@ -153,6 +161,7 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
 
   const names = new Map<string, DocumentRecord[]>();
   for (const file of documents) {
+    if (file.omitFromPackage && file.disposition === 'reference' && (file.status === 'error' || file.status === 'unsupported')) continue;
     const key = file.exportName.toLowerCase();
     const group = names.get(key) ?? [];
     group.push(file);
@@ -163,12 +172,22 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
   const measuredPlans: DocumentRecord[] = [];
   const searchablePlans: DocumentRecord[] = [];
   for (const file of documents) {
+    if (file.typeReview) {
+      add('confirm-file-type', 'review', 'Confirm file type', file.typeReview,
+        'Choose Plan, Supporting document, or Review-only reference in Add plans.', file);
+    }
+    if (file.disposition === 'reference' && file.status !== 'complete') {
+      add('reference-unavailable', 'not-assessed', 'Review reference contents unavailable',
+        file.omitFromPackage ? 'This unreadable reference was omitted from the package.' : file.error ?? 'The reference could not be read.',
+        file.omitFromPackage ? 'Replace the reference if you need its contents.' : 'Replace the reference or choose Omit from ZIP.', file);
+      continue;
+    }
     const nameIsSafe = isSafeExportName(file.exportName);
     if (!nameIsSafe) {
       add('safe-filename', 'fix', 'Use a safe PDF export filename',
         `Names must end in .pdf and contain at most ${DEMO_RULE_PACK.filenameMaxLength} ASCII letters, digits, spaces, hyphens, underscores, and periods, including the extension. Paths, traversal, surrounding whitespace, and reserved Windows device names are not allowed.`,
         `Preview "${suggestFilename(file.exportName, file.kind)}" before applying it; confirm the actual sheet identity and check for name collisions. A000 - Review Sheet.pdf is a placeholder, not an identified sheet.`, file);
-    } else if (file.kind === 'plan') {
+    } else if (plans.includes(file)) {
       const parts = planNameParts(file.exportName);
       if (!parts) {
         add('plan-filename', 'fix', 'Use the plan sheet naming pattern',
@@ -187,7 +206,7 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
         'Choose distinct export names after reviewing all colliding files, or remove an unintended duplicate. Recheck suggestions before applying them.', file);
     }
 
-    if (file.kind === 'plan') {
+    if (plans.includes(file)) {
       add('title-block-manual', 'review', 'Verify title-block values on this plan',
         'A filename or text keyword cannot establish a complete, correct title block. Each plan needs visual/value verification.',
         'Check project name/owner, the legal project address, TMK(s), a brief project description, and revisions on every sheet; verify values against the authoritative project records.', file);
@@ -213,11 +232,11 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
         'The completed record contains no pages or invalid page dimensions. Covered file checks cannot be completed from this metadata.',
         'Reparse or replace the PDF and inspect its pages manually; do not assume the missing measurements pass.', file);
     } else {
-      completedCount += 1;
+      if (file.disposition !== 'reference' && !file.typeReview) completedCount += 1;
     }
 
     if (file.pages.length === 0) continue;
-    if (file.kind === 'plan') {
+    if (plans.includes(file)) {
       if (file.pages.length !== 1) {
         add('plan-page-count', 'fix', 'Export one plan sheet per PDF',
           `This plan contains ${file.pages.length} pages. Multi-page supporting forms are allowed, but each plan PDF must contain exactly one page.`,
@@ -248,7 +267,7 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
         'Visually inspect the affected pages and use OCR/re-export if useful. Do not treat absent text extraction as absent drawing content.', file);
     }
 
-    if (file.kind === 'plan' && isTitleSheetName(file.exportName)) {
+    if (plans.includes(file) && isTitleSheetName(file.exportName)) {
       const titleText = file.pages.map(page => page.text).join('\n');
       const setPlanText = plans
         .filter(planFile => planFile.status === 'complete')
@@ -284,8 +303,8 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
       'Review all plan sheets and re-export them at one common size. Supporting forms are excluded from this comparison.', b, b.pages[0].page);
   }
 
-  const extractedValues = extractProjectValues(documents);
-  const assignments = suggestDocumentAssignments(documents);
+  const extractedValues = extractProjectValues(classifiedSources);
+  const assignments = suggestDocumentAssignments(classifiedSources);
   const checklistItems = parseCodeChecklists(documents);
 
   // Surface conflicting project metadata across documents (e.g. TMK or address mismatch).
@@ -300,15 +319,31 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
   }
 
   // Sheet index vs uploaded plan files check when a drawing index is extracted.
-  const indexEntries = extractSheetIndexEntries(documents);
-  const planCodes = plans.map((plan) => /^([a-z]{0,2}\d{3})(?=[ ._&-])/i.exec(plan.exportName)?.[1].toUpperCase());
-  if (indexEntries.length > 0 && plans.every((plan) => plan.status === 'complete') && planCodes.every((code) => code !== undefined)) {
-    const uploadedCodes = new Set(planCodes);
+  const { entries: indexEntries, partial: partialIndex } = inspectSheetIndex(plans);
+  const bySheetId = new Map<string, DocumentRecord[]>();
+  let uncertainPlans = classificationPendingCount > 0;
+  for (const plan of plans) {
+    const code = sheetIdentifier(plan.exportName);
+    if (!code || plan.status !== 'complete') uncertainPlans = true;
+    if (!code) continue;
+    const matches = bySheetId.get(code) ?? [];
+    matches.push(plan);
+    bySheetId.set(code, matches);
+  }
+  for (const [code, matches] of bySheetId) {
+    if (matches.length < 2) continue;
+    uncertainPlans = true;
+    add('duplicate-sheet-id', 'review', `More than one plan uses sheet ID ${code}`,
+      matches.map((plan) => plan.exportName).join(', '),
+      'Identify the current sheet and remove or rename the superseded file.', matches[0]);
+  }
+  const sheetIndexCoverage = !indexEntries.length ? 'manual' : partialIndex || uncertainPlans ? 'partial' : 'compared';
+  if (indexEntries.length > 0) {
     const indexedCodes = new Set(indexEntries.map(entry => entry.sheetId));
     const missingByPage = new Map<string, { fileId: string; fileName: string; page: number; sheets: string[] }>();
     const namedMissing = new Set<string>();
     for (const entry of indexEntries) {
-      if (uploadedCodes.has(entry.sheetId) || namedMissing.has(entry.sheetId)) continue;
+      if (bySheetId.has(entry.sheetId) || namedMissing.has(entry.sheetId)) continue;
       namedMissing.add(entry.sheetId);
       const key = JSON.stringify([entry.fileId, entry.page]);
       const group = missingByPage.get(key) ?? { ...entry, sheets: [] };
@@ -316,13 +351,19 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
       missingByPage.set(key, group);
     }
     for (const { fileId, fileName, page, sheets } of missingByPage.values()) {
-      add('sheet-index-missing-files', 'review', 'Sheets listed in drawing index were not found in uploads',
-        `The drawing index on ${fileName} lists sheet(s) ${sheets.join(', ')}, which do not match any uploaded plan filename.`,
-        'Add the missing PDF sheets or confirm whether the sheet index on your general information/title sheet is up to date.',
-        plans.find((plan) => plan.id === fileId), page);
+      const source = plans.find((plan) => plan.id === fileId);
+      if (uncertainPlans) {
+        add('sheet-index-unmatched-files', 'review', 'Indexed sheets could not be matched',
+          `The drawing index on ${fileName} lists ${sheets.join(', ')}. Some files still need an identifier, classification, or successful analysis.`,
+          'Resolve uncertain file identities and compare the index again.', source, page);
+      } else {
+        add('sheet-index-missing-files', 'review', 'Sheets listed in drawing index were not found in uploads',
+          `The drawing index on ${fileName} lists sheet(s) ${sheets.join(', ')}, which do not match any uploaded plan filename.`,
+          'Add the missing PDF sheets or confirm whether the sheet index on your general information/title sheet is up to date.', source, page);
+      }
     }
-    const missingFromIndex = planCodes.filter((code) => code !== undefined && !indexedCodes.has(code));
-    if (indexedCodes.size > 1 && missingFromIndex.length > 0) {
+    const missingFromIndex = [...bySheetId.keys()].filter((code) => !indexedCodes.has(code));
+    if (sheetIndexCoverage === 'compared' && indexedCodes.size > 1 && missingFromIndex.length > 0) {
       add('sheet-index-extra-files', 'advisory', 'Uploaded plan sheets not listed in drawing index',
         `Uploaded sheet number(s) ${missingFromIndex.join(', ')} were not matched in the extracted drawing index on ${indexEntries[0].fileName}.`,
         'Check that the sheet index includes every uploaded sheet number and matching sheet title.');
@@ -380,14 +421,15 @@ export function analyzeDocuments(documents: DocumentRecord[]): CheckSummary {
 
   const fixCount = findings.filter(finding => finding.category === 'fix').length;
   const reviewCount = findings.filter(finding => finding.category === 'review').length;
-  const pendingCount = documents.length - completedCount;
+  const pendingCount = sources.length - completedCount;
   const formatChecksComplete = documents.length > 0 && plans.length > 0 &&
-    titlePlan !== undefined && fixCount === 0 && pendingCount === 0;
+    titlePlan !== undefined && fixCount === 0 && pendingCount === 0 && classificationPendingCount === 0;
   return {
-    findings, fixCount, reviewCount, pendingCount, completedCount, formatChecksComplete,
+    findings, fixCount, reviewCount, pendingCount, completedCount, classificationPendingCount, sheetIndexCoverage, formatChecksComplete,
     extractedValues, assignments, checklistItems,
     label: formatChecksComplete ? 'Covered file checks complete'
       : documents.length === 0 ? 'Add files to run covered file checks'
+        : classificationPendingCount > 0 ? 'Confirm file types to complete covered checks'
         : pendingCount > 0 ? 'Covered file checks incomplete' : 'Covered file checks need fixes',
   };
 }

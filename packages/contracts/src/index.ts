@@ -16,6 +16,10 @@ export interface DocumentRecord {
   originalName: string;
   exportName: string;
   kind: FileKind;
+  disposition?: 'source' | 'reference';
+  typeReview?: string;
+  kindReason?: string;
+  omitFromPackage?: boolean;
   bytes: number;
   hash: string;
   status: AnalysisStatus;
@@ -99,6 +103,8 @@ export interface CheckSummary {
   fixCount: number;
   reviewCount: number;
   pendingCount: number;
+  classificationPendingCount: number;
+  sheetIndexCoverage: 'compared' | 'partial' | 'manual';
   completedCount: number;
   formatChecksComplete: boolean;
   label: string;
@@ -109,7 +115,7 @@ export interface CheckSummary {
 
 export const DEMO_RULE_PACK = {
   id: 'hnl-preparation-demo',
-  version: '0.3.0',
+  version: '0.4.0',
   authority: 'Local preparation checks based on Honolulu DPP / CivCheck walkthrough requirements; not an official DPP or CivCheck determination.',
   source: 'docs/CIVCHECK_WALKTHROUGH.md, File Formatting Requirements & Intake/Plan Checks',
   minWidthInches: 36,

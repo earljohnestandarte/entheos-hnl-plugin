@@ -9,12 +9,9 @@ import { permitFixture, testPdf } from './fixtures';
 
 async function start(page: Page, sample = false) {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Get started' }).click();
-  await page.getByRole('radio', { name: sample ? /Try the guided sample/ : /Use my test PDFs/ }).check();
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Preparation set name' }).fill('Browser acceptance');
+  await page.getByRole('textbox', { name: /Preparation set name/ }).fill('Browser acceptance');
   await page.getByRole('checkbox').check();
-  await page.getByRole('button', { name: sample ? 'Start guided sample' : 'Open workspace' }).click();
+  await page.getByRole('button', { name: sample ? 'Try the guided sample' : 'Upload a test plan set' }).click();
   await expect(page.getByRole('navigation', { name: 'Local preparation steps' })).toBeVisible();
 }
 
@@ -24,6 +21,18 @@ function step(page: Page, name: RegExp) {
 
 test('rehearses the guided handoff, opens its evidence, and downloads a test-only ZIP', async ({ page }, info) => {
   await start(page, true);
+  const help = page.getByRole('button', { name: 'How it works' });
+  await help.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Checked locally' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(help).toBeFocused();
+  await step(page, /Fix & review/).click();
+  await page.getByRole('tab', { name: /^Findings/ }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: /Extracted values/ })).toBeFocused();
+  await expect(page.getByRole('tabpanel', { name: /Extracted values/ })).toBeVisible();
   await step(page, /Prepare for CivCheck/).click();
   const downloadButton = page.getByRole('button', { name: 'Download preparation ZIP' });
   await expect(downloadButton).toBeDisabled();
@@ -41,15 +50,89 @@ test('rehearses the guided handoff, opens its evidence, and downloads a test-onl
   const dialog = page.getByRole('dialog');
   await expect(dialog.locator('canvas')).toBeVisible();
   await expect(dialog.getByText(/Page 1 of 1/)).toBeVisible();
+  const fittedPixels = await dialog.locator('canvas').evaluate((canvas: HTMLCanvasElement) => canvas.width);
+  await dialog.getByRole('button', { name: 'Zoom in' }).click();
+  await expect(dialog.getByText('150%', { exact: true })).toBeVisible();
+  await expect(dialog.locator('canvas')).toBeVisible();
+  expect(await dialog.locator('canvas').evaluate((canvas: HTMLCanvasElement) => canvas.width)).toBeGreaterThan(fittedPixels);
+  await dialog.getByRole('searchbox', { name: 'Find in extracted text' }).fill('Example Owner');
+  await dialog.getByRole('button', { name: 'Next result' }).click();
+  await expect(dialog.locator('mark').first()).toHaveText('Example Owner');
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(evidence).toBeFocused();
   const [download] = await Promise.all([page.waitForEvent('download'), downloadButton.click()]);
   expect(download.suggestedFilename()).toBe('HNL-preflight-sample-test-only.zip');
+  await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: async () => { throw new DOMException('Test clipboard unavailable', 'NotAllowedError'); } },
+  }));
+  await checklist.getByRole('button', { name: 'Copy handoff checklist' }).click();
+  await expect(checklist.getByText(/Clipboard access failed/)).toBeVisible();
+  const [textFile] = await Promise.all([
+    page.waitForEvent('download'), checklist.getByRole('button', { name: 'Download checklist TXT' }).click(),
+  ]);
+  const notes = await readFile((await textFile.path())!, 'utf8');
+  expect(notes).toContain('TEST ONLY');
+  expect(notes).toContain('1. upload/plan/000 - Title Sheet.pdf');
+  expect(notes).toContain('Supporting Form.pdf · Pages 1–3');
+  expect(notes).toContain('Example Owner · 000 - Title Sheet.pdf, page 1, revision 1');
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   const screenshot = await page.screenshot({ path: info.outputPath('mobile-handoff.png'), fullPage: true });
   await info.attach('mobile handoff', { body: screenshot, contentType: 'image/png' });
+});
+
+test('flags combined drawings and preserves reference and replacement decisions through the ZIP', async ({ page }) => {
+  await start(page);
+  const title = await testPdf('000 - Title Sheet.pdf', [[
+    'Title Sheet', 'Sheet Index', '000 Title Sheet', 'Structural', 'S101 Foundation Plan', 'General Notes',
+  ]]);
+  const combined = await testPdf('Full Drawing Set.pdf', [['Existing Floor Plan'], ['Roof Plan']]);
+  const ambiguous = { ...combined, name: 'Drawing Report.pdf' };
+  const checklist = await testPdf('Code Checklist.pdf', [['REVIEW TYPE CODE TITLE SECTION', 'CHECKLIST SUMMARY']], false);
+  const unreadable = { name: 'Unreadable.pdf', mimeType: 'application/pdf', buffer: Buffer.from('Broken test input') };
+  const files = page.getByLabel('Add test PDFs');
+  await files.setInputFiles([title]);
+  await expect(page.getByText(/File analysis finished/)).toBeVisible();
+  await step(page, /Fix & review/).click();
+  await expect(page.getByText(/Sheets listed in drawing index were not found/)).toBeVisible();
+  await step(page, /Add plans/).click();
+  await files.setInputFiles([combined, ambiguous, checklist, unreadable]);
+  await expect(page.getByText(/File analysis finished/)).toBeVisible();
+  await expect(page.getByRole('article', { name: combined.name }).getByRole('combobox')).toHaveValue('plan');
+  const confirmation = page.getByRole('article', { name: ambiguous.name }).getByRole('combobox');
+  await expect(confirmation).toHaveValue('');
+  await expect(page.getByRole('article', { name: checklist.name }).getByRole('combobox')).toHaveValue('reference');
+  await step(page, /Fix & review/).click();
+  await expect(page.getByText('Export one plan sheet per PDF')).toBeVisible();
+  await expect(page.getByText('Indexed sheets could not be matched')).toBeVisible();
+  await step(page, /Add plans/).click();
+  await confirmation.selectOption('supporting');
+  const bad = page.getByRole('article', { name: unreadable.name });
+  await bad.getByRole('combobox').selectOption('reference');
+  await bad.getByRole('button', { name: 'Omit from ZIP' }).click();
+
+  const titleCard = page.getByRole('article', { name: title.name });
+  await titleCard.getByRole('button', { name: 'Review filename' }).click();
+  await titleCard.getByRole('textbox', { name: 'Proposed export name' }).fill('Title & Plan.pdf');
+  await expect(titleCard.getByRole('button', { name: 'Accept name' })).toBeDisabled();
+  await titleCard.getByRole('button', { name: 'Cancel', exact: true }).click();
+  const [replace] = await Promise.all([page.waitForEvent('filechooser'), titleCard.getByRole('button', { name: 'Replace', exact: true }).click()]);
+  await replace.setFiles(unreadable);
+  await expect(page.getByRole('alert')).toContainText('The previous revision is still in the workspace.');
+  await expect(titleCard).toContainText('Revision 1');
+  await titleCard.getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.getByRole('button', { name: 'Undo remove' }).click();
+  await expect(titleCard).toBeVisible();
+
+  await step(page, /Prepare for CivCheck/).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download preparation ZIP' }).click()]);
+  const output = unzipSync(await readFile((await download.path())!));
+  expect(Buffer.from(output[`reference/source-pdfs/${checklist.name}`])).toEqual(checklist.buffer);
+  expect(output[`upload/supporting/${checklist.name}`]).toBeUndefined();
+  const manifest = JSON.parse(Buffer.from(output['reference/manifest.json']).toString());
+  expect(manifest.omittedReferences).toContainEqual(expect.objectContaining({ originalName: unreadable.name }));
 });
 
 test('uses the chooser and folder inputs, replaces a PDF, and preserves bytes in the browser ZIP', async ({ page }, info) => {
@@ -84,7 +167,7 @@ test('uses the chooser and folder inputs, replaces a PDF, and preserves bytes in
   expect(download.suggestedFilename()).toBe('HNL-preflight-test-only.zip');
   const output = unzipSync(await readFile((await download.path())!));
   const manifest = JSON.parse(Buffer.from(output['reference/manifest.json']).toString());
-  expect(manifest).toMatchObject({ schemaVersion: 2, testOnly: true, submissionReady: false });
+  expect(manifest).toMatchObject({ schemaVersion: 3, testOnly: true, submissionReady: false });
   expect(manifest.documents).toHaveLength(12);
   expect(manifest.documents.find((document: { exportName: string }) => document.exportName === floor.name)).toMatchObject({ revision: 2 });
   for (const document of manifest.documents) {

@@ -85,7 +85,7 @@ export default function App() {
       <div className="header-actions"><button type="button" className="button ghost sm" onClick={() => setHelp(true)}>How it works</button></div>
     </div></header>
     <main id="main" className="app-main">
-      {!started ? <Onboarding initialName={setupName} initialPath={path} busy={session.busy} error={session.error} onStart={start} /> : <>
+      {!started ? <Onboarding initialName={setupName} busy={session.busy} error={session.error} onStart={start} /> : <>
         <div className="page-heading">
           <div>
             <p className="page-context"><span>{session.projectName}</span></p>
@@ -93,14 +93,26 @@ export default function App() {
             <p>{stepCopy[step].detail}</p>
           </div>
         </div>
-        <StepNavigation current={step} hasFiles={session.items.length > 0} fixCount={session.summary.fixCount} onNavigate={navigate} />
+        <StepNavigation current={step} hasFiles={session.items.length > 0} fixCount={session.summary.fixCount}
+          classificationPendingCount={session.summary.classificationPendingCount} onNavigate={navigate} />
         {session.error && <div className="alert error" role="alert">{session.error}</div>}
         {session.notice && <div className="alert success" role="status">{session.notice}</div>}
         <div className="content-grid"><div className="main-column">
           {step === 'setup' && <section className="panel surface-card"><div className="panel-heading"><div><h2>Set details</h2><p className="muted">Practice locally with synthetic or approved test PDFs.</p></div></div><form className="setup-workspace" onSubmit={(event) => { event.preventDefault(); if (!setupName.trim()) { setSetupError('Give your preparation set a name.'); return; } session.setProjectName(setupName.trim()); setSetupError(''); setStep('files'); }}><label className="field-label" htmlFor="workspace-name">Preparation set name</label><input id="workspace-name" maxLength={100} value={setupName} disabled={session.busy} onChange={(event) => setSetupName(event.target.value)} /><p className="field-hint">Changing this label does not remove or reclassify your files.</p><div className="setup-selection"><span>Starting point</span><strong>{path === 'sample' ? 'Guided synthetic sample' : 'Your test PDFs'}</strong></div><div className="notice"><strong>This session is not saved.</strong><p>Files stay in browser memory only. Refresh clears the workspace; source files and downloaded copies are not changed. No scope or compliance validation is performed.</p></div>{setupError && <p role="alert" className="error-text">{setupError}</p>}<div className="action-row"><button className="button primary" disabled={session.busy}>Continue to files</button></div></form></section>}
-          {step === 'files' && <FilesPanel items={session.items} summary={session.summary} busy={session.busy} exporting={session.exporting} guided={path === 'sample'} highlightedId={highlightedId} onAdd={(files) => { void session.addFiles(files); }} onReplace={(id, file) => { void session.replaceFile(id, file); }} onRename={session.rename} onClassify={session.classify} onRemove={(id) => { setPreview(null); session.remove(id); }} onPreview={(id) => setPreview({ id, page: 1 })} onCorrectDemo={(id) => { void session.correctDemo(id); }} onContinue={() => { setFindingFilter('all'); setStep('findings'); }} />}
+          {step === 'files' && <FilesPanel
+            items={session.items} summary={session.summary} busy={session.busy} exporting={session.exporting}
+            guided={path === 'sample'} highlightedId={highlightedId} removedName={session.removedName} replacingId={session.replacingId}
+            onAdd={(files) => { void session.addFiles(files); }} onReplace={(id, file) => { void session.replaceFile(id, file); }}
+            onRename={session.rename} onClassify={session.classify} onOmitReference={session.omitReference}
+            onRemove={(id) => { setPreview(null); session.remove(id); }}
+            onUndoRemove={() => { void session.undoRemove(); }} onCancelReplacement={session.cancelReplacement}
+            onPreview={(id) => setPreview({ id, page: 1 })} onCorrectDemo={(id) => { void session.correctDemo(id); }}
+            onContinue={() => { setFindingFilter('all'); setStep('findings'); }}
+          />}
           {step === 'findings' && <FindingsPanel key={findingFilter} items={session.items} summary={session.summary} onPreview={(id, page) => setPreview({ id, page })} onEditFile={editFile} onContinue={() => setStep('handoff')} initialFilter={findingFilter} />}
-          {step === 'handoff' && <HandoffPanel items={session.items} summary={session.summary} busy={session.busy} exporting={session.exporting} onExport={() => { void session.exportPackage(); }} onBack={() => setStep('findings')} onPreview={(id, page) => setPreview({ id, page })} />}
+          {step === 'handoff' && <HandoffPanel items={session.items} summary={session.summary} busy={session.busy} exporting={session.exporting}
+            onExport={() => { void session.exportPackage(); }} onBack={() => { setFindingFilter('all'); setStep('findings'); }}
+            onFiles={() => setStep('files')} onPreview={(id, page) => setPreview({ id, page })} />}
           <div className="workspace-reset">{clearConfirm ? <div className="notice reset-confirm"><strong>Clear this workspace and start again?</strong><p>All files and findings in this session will be removed. Originals and downloads stay unchanged.</p><div className="action-row reset-actions"><button className="button secondary danger-outline" disabled={session.exporting} onClick={reset}>Clear and start again</button><button className="button primary" onClick={() => setClearConfirm(false)}>Keep working</button></div></div> : <button className="button ghost sm" disabled={session.exporting} onClick={() => setClearConfirm(true)}>Start a new preparation set</button>}</div>
         </div><PreparationSummary summary={session.summary} fileCount={session.items.length} working={session.working} onCoverage={() => { setFindingFilter('not-assessed'); setStep('findings'); }} /></div>
       </>}

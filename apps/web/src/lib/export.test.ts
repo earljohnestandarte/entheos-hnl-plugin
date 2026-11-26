@@ -50,6 +50,23 @@ afterEach(() => {
 });
 
 describe('buildPackage', () => {
+  it('keeps original review references outside upload and lists explicitly omitted unreadable references', async () => {
+    const plan = await source();
+    const files = await createDemoFiles();
+    const reference = await source(files[2], { id: 'checklist', kind: 'supporting', disposition: 'reference' });
+    const file = new File(['bad test reference'], 'Unreadable.pdf');
+    const omitted: SourceDocument = { file, record: {
+      ...reference.record, id: 'unreadable', originalName: file.name, exportName: file.name,
+      hash: '', pages: [], status: 'error', bytes: file.size, omitFromPackage: true,
+    } };
+    const entries = unzipSync(await buildPackage('Test set', [plan, reference, omitted], []));
+    expect(entries['reference/source-pdfs/Supporting Form.pdf']).toEqual(new Uint8Array(await reference.file.arrayBuffer()));
+    expect(entries['upload/supporting/Supporting Form.pdf']).toBeUndefined();
+    const manifest = JSON.parse(strFromU8(entries['reference/manifest.json']));
+    expect(manifest.documents).toContainEqual(expect.objectContaining({ id: 'checklist', disposition: 'reference' }));
+    expect(manifest.omittedReferences).toContainEqual(expect.objectContaining({ id: 'unreadable', originalName: file.name }));
+  });
+
   it('labels a mixed test package and omits full extracted page text from every reference', async () => {
     const marker = 'SYNTHETIC_UNRELATED_PAGE_TEXT';
     const sample = await source();
@@ -61,7 +78,7 @@ describe('buildPackage', () => {
       { ...test, syntheticSample: false },
     ], []));
     const manifest = JSON.parse(strFromU8(entries['reference/manifest.json']));
-    expect(manifest).toMatchObject({ schemaVersion: 2, testOnly: true, documents: [
+    expect(manifest).toMatchObject({ schemaVersion: 3, testOnly: true, documents: [
       { provenance: 'synthetic-sample' }, { provenance: 'user-supplied-test' },
     ] });
     expect(manifest.documents[0].pages[0]).not.toHaveProperty('text');
@@ -91,7 +108,7 @@ describe('buildPackage', () => {
       syntheticDemo: true, applicationPersistence: false, complianceAssessed: false,
       submissionReady: false, referenceFilesAreUploadCandidates: false,
       projectName: 'Example project', unresolved: { fix: 1, review: 1, notAssessed: 0 },
-      rulePack: { id: 'hnl-preparation-demo', version: '0.3.0' },
+      rulePack: { id: 'hnl-preparation-demo', version: '0.4.0' },
       libraries: { 'pdf-lib': '1.17.1', fflate: '0.8.3' },
     });
     expect(manifest.projectRevision).toMatch(/^[a-f\d]{64}$/);
