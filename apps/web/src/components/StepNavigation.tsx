@@ -1,7 +1,6 @@
-export type WorkspaceStep = 'setup' | 'files' | 'findings' | 'handoff';
+export type WorkspaceStep = 'files' | 'findings' | 'handoff';
 
 const STEPS = [
-  { id: 'setup', label: 'Set up', detail: 'Preparation set' },
   { id: 'files', label: 'Add plans', detail: 'Files & types' },
   { id: 'findings', label: 'Fix & review', detail: 'Checks & values' },
   { id: 'handoff', label: 'Prepare for CivCheck', detail: 'Export package' },
@@ -32,7 +31,7 @@ export function StepNavigation({ current, hasFiles, fixCount, classificationPend
                   <strong>{step.label}</strong>
                   <small>{step.detail}</small>
                 </span>
-                {count > 0 && (
+                {hasFiles && count > 0 && (
                   <span className="step-count" aria-label={`${count} ${step.id === 'files' ? 'types to confirm' : 'file fixes open'}`}>{count}</span>
                 )}
               </button>

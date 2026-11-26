@@ -253,29 +253,6 @@ small, .small { font-size: 12px; line-height: 1.45; }
   box-shadow: var(--shadow-sheet);
 }
 
-/* Onboarding: quiet centered sheet */
-.onboarding-layout {
-  max-width: 640px;
-  margin: 12px auto 40px;
-}
-.onboarding-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 28px 32px;
-  box-shadow: var(--shadow-sheet);
-}
-.setup-heading { margin-bottom: 20px; }
-.setup-heading h1 { margin-bottom: 8px; }
-.setup-heading > p { margin: 0; }
-.start-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
-  gap: 16px;
-}
-.start-actions .button { width: 100%; }
-.start-actions .field-hint { margin-bottom: 0; }
-
 .coverage-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -307,35 +284,20 @@ small, .small { font-size: 12px; line-height: 1.45; }
 .field-label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--ink); }
 .field-label input { display: block; margin-top: 6px; }
 .field-hint { font-size: 12px; color: var(--muted); margin: 8px 0 16px; overflow-wrap: anywhere; }
-.setup-selection {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 0;
-  margin-top: 12px;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
-}
-.setup-selection span { color: var(--muted); }
-.setup-selection strong { font-weight: 500; }
-.acknowledgment {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--ink);
-  cursor: pointer;
-  min-height: 40px;
-  padding-top: 4px;
-}
-.acknowledgment input { margin-top: 3px; }
 .error-text { color: var(--danger); font-size: 13px; margin: 12px 0; font-weight: 500; }
 
-/* Workspace Header & Segmented 4-Step Rail */
+/* Workspace header and preparation steps */
 .page-heading { margin: 0 0 20px; }
-.page-context { font-size: 13px; color: var(--muted); margin: 0 0 4px; }
+.page-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 4px;
+  overflow-wrap: anywhere;
+}
 .page-heading h1 { margin-bottom: 4px; }
 .page-heading > div > p:last-child { margin: 0; color: var(--secondary); }
 
@@ -349,7 +311,7 @@ small, .small { font-size: 12px; line-height: 1.45; }
 .step-navigation ol {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   padding: 0;
   margin: 0;
@@ -465,9 +427,12 @@ small, .small { font-size: 12px; line-height: 1.45; }
   background-color: var(--brand-soft);
   box-shadow: inset 0 0 0 1px var(--brand-line);
 }
-.drop-zone h3 { margin-bottom: 2px; }
+.drop-zone h2, .drop-zone h3 { margin-bottom: 4px; }
 .drop-zone p { color: var(--muted); font-size: 12px; margin: 0; }
+.drop-zone p + p { margin-top: 4px; }
 .drop-zone-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sample-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.sample-entry > span { color: var(--muted); font-size: 13px; }
 
 .classification-hint { font-size: 12px; color: var(--muted); margin: 12px 0 16px; }
 .classification-hint strong { font-weight: 500; color: var(--ink); }
@@ -970,12 +935,11 @@ small, .small { font-size: 12px; line-height: 1.45; }
   .brand-description { display: none; }
   .app-main { padding: 20px 16px 28px; }
   .surface-card { padding: 18px 16px; }
-  .onboarding-card { padding: 20px 16px; }
   .coverage-columns { grid-template-columns: 1fr; gap: 14px; }
   .page-heading { margin-bottom: 16px; }
   .page-heading h1 { font-size: 24px; }
-  .step-navigation ol { grid-template-columns: 1fr 1fr; gap: 4px; }
-  .step-button { padding: 10px; min-height: 44px; }
+  .step-button { padding: 8px 6px; gap: 6px; min-height: 44px; }
+  .step-badge { width: 18px; height: 18px; }
   .step-button small { display: none; }
   .content-grid { grid-template-columns: 1fr; }
   .sidebar { position: static; grid-template-columns: 1fr; }

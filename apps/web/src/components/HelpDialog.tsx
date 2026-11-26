@@ -2,12 +2,8 @@ import { useEffect, useRef } from 'react';
 
 const HELP_STEPS = [
   {
-    title: 'Set up a local preparation set',
-    detail: 'Add synthetic or approved test PDFs, select a test folder, or try the guided sample.',
-  },
-  {
     title: 'Add and classify your PDFs',
-    detail: 'Confirm drawing sheets as plans, forms as supporting documents, and checklists you use for review as references.',
+    detail: 'Add synthetic or approved test PDFs, or try the guided sample. Confirm drawing sheets as plans, forms as supporting documents, and checklists used for review as references.',
   },
   {
     title: 'Fix, replace, and review',

@@ -7,7 +7,8 @@ import { handoffFiles } from '../lib/handoffFiles';
 
 interface FileItem { record: DocumentRecord; demo: boolean }
 interface Props {
-  items: FileItem[]; summary: CheckSummary; busy: boolean; exporting: boolean; guided: boolean; highlightedId: string | null;
+  items: FileItem[]; summary: CheckSummary; busy: boolean; exporting: boolean; highlightedId: string | null;
+  onLoadSample: () => void;
   onAdd: (files: File[]) => void; onReplace: (id: string, file: File) => void;
   onRename: (id: string, name: string) => void; onClassify: (id: string, kind: FileKind | 'reference') => void;
   onOmitReference: (id: string) => void;
@@ -90,7 +91,9 @@ function FilenameEditor({ record, records, busy, onRename }: {
 }
 
 export function FilesPanel(props: Props) {
-  const { items, summary, busy, exporting, guided, highlightedId } = props;
+  const { items, summary, busy, exporting, highlightedId } = props;
+  const hasFiles = items.length > 0;
+  const guided = items.some((item) => item.demo);
   const nameRecords = handoffFiles(items.map((item) => item.record)).included;
   const picker = useRef<HTMLInputElement>(null);
   const folderPicker = useRef<HTMLInputElement>(null);
@@ -139,12 +142,12 @@ export function FilesPanel(props: Props) {
       )}
 
       <section className="panel surface-card">
-        <div className="panel-heading">
+        {hasFiles && <div className="panel-heading">
           <div>
             <h2>Drawing &amp; document schedule</h2>
           </div>
           <span className="panel-meta">{items.length} {items.length === 1 ? 'file' : 'files'}</span>
-        </div>
+        </div>}
 
         <div
           className={`drop-zone ${dragging ? 'is-dragging' : ''}`}
@@ -155,17 +158,18 @@ export function FilesPanel(props: Props) {
             setDragging(false);
             if (busy) return;
             const hasDirectory = Array.from(event.dataTransfer.items ?? []).some((item) => item.webkitGetAsEntry?.()?.isDirectory);
-            void collectDroppedFiles(event.dataTransfer).then((files) => addFilteredFromBatch(files, hasDirectory));
+            void collectDroppedFiles(event.dataTransfer).then((files) => {
+              if (picker.current) addFilteredFromBatch(files, hasDirectory);
+            });
           }}
         >
           <div className="drop-zone-lead">
-            <div>
-              <h3>Add test PDFs or a folder</h3>
-              <p>Use synthetic or approved test PDFs. Up to 20 files, 25 MB per file (100 MB total).</p>
-            </div>
+            {hasFiles ? <h3>Add test PDFs or a folder</h3> : <h2>Drop test PDFs or a folder here</h2>}
+            <p>Use synthetic or approved, de-identified PDFs for local testing. Refreshing clears the set.</p>
+            <p>Up to 20 files, 25 MB per file (100 MB total).</p>
           </div>
           <div className="drop-zone-actions">
-            <button type="button" className="button secondary" disabled={busy} onClick={() => picker.current?.click()}>
+            <button type="button" className={hasFiles ? 'button secondary' : 'button primary'} disabled={busy} onClick={() => picker.current?.click()}>
               Choose PDF files
             </button>
             <button type="button" className="button secondary" disabled={busy} onClick={() => folderPicker.current?.click()}>
@@ -183,23 +187,20 @@ export function FilesPanel(props: Props) {
           <span>Removed {props.removedName}.</span>{' '}
           <button type="button" className="button ghost sm" disabled={busy} onClick={props.onUndoRemove}>Undo remove</button>
         </div>}
-        <p className="classification-hint">
-          <strong>Plan</strong> is a drawing sheet. <strong>Supporting document</strong> covers multi-page forms, checklists, and reports.
-        </p>
-
-        {!items.length && (
-          <div className="empty-state">
-            <h3>No test PDFs added yet</h3>
-            <p>Add test plan sheets or a test folder to inspect filenames, dimensions, and extracted values.</p>
-            <div className="action-row">
-              <button type="button" className="button primary" disabled={busy} onClick={() => picker.current?.click()}>
-                Add test PDFs
-              </button>
-            </div>
+        {hasFiles ? (
+          <p className="classification-hint">
+            <strong>Plan</strong> is a drawing sheet. <strong>Supporting document</strong> covers multi-page forms, checklists, and reports.
+          </p>
+        ) : (
+          <div className="sample-entry">
+            <button type="button" className="button ghost" disabled={busy} onClick={props.onLoadSample}>
+              Try the guided sample
+            </button>
+            {busy && <span role="status">Preparing files…</span>}
           </div>
         )}
 
-        <div className="file-list">
+        {hasFiles && <div className="file-list">
           {items.map(({ record, demo }, idx) => {
             const count = summary.findings.filter((finding) => finding.fileId === record.id && finding.category === 'fix').length;
             const first = record.pages[0];
@@ -293,14 +294,14 @@ export function FilesPanel(props: Props) {
               </article>
             );
           })}
-        </div>
+        </div>}
 
-        <div className="panel-footer">
+        {hasFiles && <div className="panel-footer">
           <p className="muted small">Changes automatically recalculate file and set-level checks.</p>
-          <button type="button" className="button primary" disabled={!items.length || busy} onClick={props.onContinue}>
+          <button type="button" className="button primary" disabled={busy} onClick={props.onContinue}>
             Fix &amp; review
           </button>
-        </div>
+        </div>}
       </section>
     </>
   );

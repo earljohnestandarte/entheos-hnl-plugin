@@ -32,14 +32,14 @@ To serve the production build locally, run `corepack pnpm --filter @hnl/web prev
 
 ## Try the sample fix path
 
-1. Acknowledge the local test-session limits and select **Try the guided sample**. It generates a title sheet, a portrait floor plan named `A101 & Floor Plan.pdf`, and a three-page supporting form. Choose **Upload a test plan set** to add approved test PDFs from your usual drawing tools. Both paths open **Add plans**.
+1. Preflight opens on **Add plans**. Choose PDF files, select a folder, or drop approved test PDFs from your usual drawing tools. **Try the guided sample** generates a title sheet, a portrait floor plan named `A101 & Floor Plan.pdf`, and a three-page supporting form.
 2. Review the **Plan**, **Supporting document**, and **Review-only reference** roles. Resolve any **Confirm file type** decisions before handoff. The plan sheet-size and single-page checks apply to drawing sheets.
 3. Select **Review filename**, inspect the suggestion, then **Accept name**. **Undo rename** restores the original name; source PDF bytes are never rewritten.
 4. Open **View PDF** to zoom, navigate pages, or search the extracted text. Review the per-file and set-level findings, including drawing-index coverage, under **Fix**, **Review**, **Advice**, and **Not assessed**.
 5. Select **Use corrected sample PDF** or **Replace** with another approved test PDF. A readable replacement advances the revision and recalculates findings. A failed or canceled replacement leaves the current revision available.
 6. Open **Prepare for CivCheck** to review the remaining work, plan order, suggested document pages, and evidence for the owner, address, and TMK. Copy or download the checklist as text, or download the test-only ZIP once export blockers are cleared. Keep the test files and reports out of the live portal.
 
-The four local steps are **Set up → Add plans → Fix & review → Prepare for CivCheck**. They are not CivCheck progress counters. **How it works** reopens help without discarding files; **Set up** lets you rename the set. **Start a new preparation set** asks for confirmation before clearing the session.
+The three local steps are **Add plans → Fix & review → Prepare for CivCheck**. After adding files, use **Rename set** to give the set a name or **How it works** to reopen help. **Start a new preparation set** asks for confirmation before clearing the session.
 
 Use **Undo remove** to restore the most recently removed PDF during the current session. **Undo rename** restores a file's original export name. Clearing the workspace also clears the removal undo.
 

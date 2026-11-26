@@ -52,19 +52,19 @@ describe('preparation workspace', () => {
     render(<StepNavigation current="files" hasFiles={false} fixCount={0} classificationPendingCount={0} onNavigate={navigate} />);
     expect(screen.getByRole('navigation', { name: 'Local preparation steps' })).toBeTruthy();
     expect((screen.getByRole('button', { name: /Fix & review/ }) as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: /Set up/ }));
-    expect(navigate).toHaveBeenCalledWith('setup');
+    fireEvent.click(screen.getByRole('button', { name: /Add plans/ }));
+    expect(navigate).toHaveBeenCalledWith('files');
   });
   it('updates sample milestones based on real current file data', () => {
-    const callbacks = { onAdd: vi.fn(), onReplace: vi.fn(), onRename: vi.fn(), onClassify: vi.fn(), onOmitReference: vi.fn(), onPreview: vi.fn(), onRemove: vi.fn(), onUndoRemove: vi.fn(), onCancelReplacement: vi.fn(), onCorrectDemo: vi.fn(), onContinue: vi.fn() };
+    const callbacks = { onAdd: vi.fn(), onLoadSample: vi.fn(), onReplace: vi.fn(), onRename: vi.fn(), onClassify: vi.fn(), onOmitReference: vi.fn(), onPreview: vi.fn(), onRemove: vi.fn(), onUndoRemove: vi.fn(), onCancelReplacement: vi.fn(), onCorrectDemo: vi.fn(), onContinue: vi.fn() };
     const items = [{ record: title, demo: true }, { record: bad, demo: true }];
-    const { rerender } = render(<FilesPanel {...callbacks} items={items} summary={analyzeDocuments(items.map((item) => item.record))} busy={false} exporting={false} guided highlightedId={null} />);
+    const { rerender } = render(<FilesPanel {...callbacks} items={items} summary={analyzeDocuments(items.map((item) => item.record))} busy={false} exporting={false} highlightedId={null} />);
     fireEvent.click(screen.getAllByRole('button', { name: /Review filename/ })[1]);
     fireEvent.click(screen.getByRole('button', { name: 'Accept name' }));
     expect(callbacks.onRename).toHaveBeenCalledWith('floor', 'A101 - Floor Plan.pdf');
     const corrected = { ...bad, exportName: 'A101 - Floor Plan.pdf', revision: 2, pages: title.pages };
     const next = [{ record: title, demo: true }, { record: corrected, demo: true }];
-    rerender(<FilesPanel {...callbacks} items={next} summary={analyzeDocuments(next.map((item) => item.record))} busy={false} exporting={false} guided highlightedId={null} />);
+    rerender(<FilesPanel {...callbacks} items={next} summary={analyzeDocuments(next.map((item) => item.record))} busy={false} exporting={false} highlightedId={null} />);
     expect(screen.queryByRole('button', { name: /Use corrected sample PDF/ })).toBeNull();
     expect(screen.getByLabelText('Guided sample checklist').querySelectorAll('li.is-done').length).toBe(2);
     expect(screen.getByText('Next: review manual and unassessed items')).toBeTruthy();
