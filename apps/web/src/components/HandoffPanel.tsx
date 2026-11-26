@@ -6,6 +6,8 @@ import { IconDownload } from './Icons';
 export interface HandoffPanelProps {
   items: Array<{ record: DocumentRecord }>;
   summary: CheckSummary;
+  verifiedIds?: readonly string[];
+  resolvedFixCount?: number;
   exporting: boolean;
   busy: boolean;
   onExport: () => void;
@@ -17,6 +19,8 @@ export interface HandoffPanelProps {
 export function HandoffPanel({
   items,
   summary,
+  verifiedIds = [],
+  resolvedFixCount = 0,
   exporting,
   busy,
   onExport,
@@ -31,6 +35,9 @@ export function HandoffPanel({
   const blockers = packageBlockers(records);
   const canExport = blockers.length === 0 && !busy && !exporting;
   const notAssessedCount = summary.findings.filter((finding) => finding.category === 'not-assessed').length;
+  const verifiedSet = new Set(verifiedIds);
+  const openReviewCount = summary.findings.filter((finding) => finding.category === 'review' && !verifiedSet.has(finding.id)).length;
+  const verifiedReviewCount = summary.reviewCount - openReviewCount;
   const isReadyPeak = summary.formatChecksComplete && blockers.length === 0;
 
   return (
@@ -51,7 +58,9 @@ export function HandoffPanel({
             : summary.label}
         </strong>
         <p>
-          {summary.fixCount} open {summary.fixCount === 1 ? 'fix' : 'fixes'}, {summary.reviewCount} requiring manual review, and {notAssessedCount} not assessed.
+          {summary.fixCount} open {summary.fixCount === 1 ? 'fix' : 'fixes'}
+          {resolvedFixCount > 0 ? `, ${resolvedFixCount} fixed` : ''}, {openReviewCount} requiring manual review
+          {verifiedReviewCount > 0 ? `, ${verifiedReviewCount} verified` : ''}, and {notAssessedCount} not assessed.
           {summary.classificationPendingCount > 0 && ` Confirm the type of ${summary.classificationPendingCount} ${summary.classificationPendingCount === 1 ? 'file' : 'files'}.`}
         </p>
         <p className="muted">Use synthetic or approved test PDFs only. Downloads are unencrypted copies.</p>

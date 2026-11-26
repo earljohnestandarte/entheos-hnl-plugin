@@ -84,4 +84,50 @@ describe('preparation workspace', () => {
     expect(screen.getByRole('heading', { name: 'reference/' })).toBeTruthy();
     expect(screen.getByText(/Do not upload these reports/)).toBeTruthy();
   });
+
+  it('validates plan filenames inline and verifies per-file checks in Add plans', () => {
+    const callbacks = {
+      onAdd: vi.fn(), onLoadSample: vi.fn(), onReplace: vi.fn(), onRename: vi.fn(), onClassify: vi.fn(),
+      onOmitReference: vi.fn(), onPreview: vi.fn(), onRemove: vi.fn(), onUndoRemove: vi.fn(),
+      onCancelReplacement: vi.fn(), onCorrectDemo: vi.fn(), onContinue: vi.fn(), onVerifyFile: vi.fn(),
+    };
+    const invalidPlan: DocumentRecord = {
+      ...title, id: 'p2', originalName: 'Floor Plan & Notes.pdf', exportName: 'Floor Plan & Notes.pdf',
+    };
+    const items = [{ record: title, demo: false }, { record: invalidPlan, demo: false }];
+    const { rerender } = render(
+      <FilesPanel {...callbacks} items={items} summary={analyzeDocuments(items.map((item) => item.record))} busy={false} exporting={false} highlightedId={null} />,
+    );
+    const card = within(screen.getByRole('article', { name: 'Floor Plan & Notes.pdf' }));
+    expect(card.getByText(/Use a safe PDF export filename/)).toBeTruthy();
+    fireEvent.click(card.getByRole('button', { name: 'Review filename' }));
+    expect((card.getByRole('textbox', { name: 'Proposed export name' }) as HTMLInputElement).value).toBe('Floor Plan Notes.pdf');
+    expect(card.getByText(/Plan filenames must start with a sheet code/)).toBeTruthy();
+    fireEvent.change(card.getByRole('textbox', { name: 'Proposed export name' }), { target: { value: 'A102 - Floor Plan Notes.pdf' } });
+    expect(card.getByText(/Valid plan naming \(A102\)/)).toBeTruthy();
+    fireEvent.click(card.getByRole('button', { name: 'Accept name' }));
+    expect(callbacks.onRename).toHaveBeenCalledWith('p2', 'A102 - Floor Plan Notes.pdf');
+
+    const fixedPlan: DocumentRecord = { ...invalidPlan, exportName: 'A102 - Floor Plan Notes.pdf' };
+    const nextItems = [{ record: title, demo: false }, { record: fixedPlan, demo: false }];
+    const resolvedFix = analyzeDocuments(items.map((item) => item.record)).findings.find((finding) => finding.fileId === 'p2' && finding.category === 'fix')!;
+    rerender(
+      <FilesPanel
+        {...callbacks}
+        items={nextItems}
+        summary={analyzeDocuments(nextItems.map((item) => item.record))}
+        verifiedFileKeys={{ p2: '1:A102 - Floor Plan Notes.pdf:plan:source:ok' }}
+        resolvedFixes={[resolvedFix]}
+        busy={false}
+        exporting={false}
+        highlightedId={null}
+      />,
+    );
+    const updatedCard = within(screen.getByRole('article', { name: 'A102 - Floor Plan Notes.pdf' }));
+    expect(updatedCard.getByText('Checked')).toBeTruthy();
+    expect(updatedCard.getByText('Fixed')).toBeTruthy();
+    expect(updatedCard.getByText('Verified')).toBeTruthy();
+    fireEvent.click(updatedCard.getByRole('button', { name: 'Re-verify' }));
+    expect(updatedCard.getByText('All covered file checks pass')).toBeTruthy();
+  });
 });

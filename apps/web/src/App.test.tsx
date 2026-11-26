@@ -285,6 +285,37 @@ describe('App preparation journeys', () => {
     expect(within(screen.getByRole('navigation', { name: 'Local preparation steps' })).getByRole('button', { name: /Workspace setup/ }).className).toContain('is-done');
   });
 
+  it('allows fixing filenames inline, verifying files, and resolving manual reviews in Fix & review', async () => {
+    render(<App />);
+    await loadSample('Validation test set');
+
+    const floorCard = within(screen.getByRole('article', { name: floorName }));
+    fireEvent.click(floorCard.getByRole('button', { name: 'Verify checks' }));
+    expect(floorCard.getByText('File check validator')).toBeTruthy();
+    expect(floorCard.getByText(/Page 1 is 24\.0 × 36\.0 in/)).toBeTruthy();
+
+    navigate(/Fix & review/);
+    const fixCard = within(screen.getByText('Use a safe PDF export filename').closest('article')!);
+    fireEvent.click(fixCard.getByRole('button', { name: 'Edit & validate filename' }));
+    fireEvent.click(fixCard.getByRole('button', { name: 'Accept name' }));
+    const findingsRegion = within(screen.getByRole('region', { name: 'Preparation findings' }));
+    const resolvedCard = within(findingsRegion.getByText('Use a safe PDF export filename').closest('article')!);
+    expect(resolvedCard.getByText('Fixed')).toBeTruthy();
+    expect(findingsRegion.getByText(/1 open · 1 fixed/)).toBeTruthy();
+
+    const reviewButtons = screen.getAllByRole('button', { name: 'Mark verified' });
+    const initialCount = reviewButtons.length;
+    fireEvent.click(reviewButtons[0]);
+    expect(screen.getAllByRole('button', { name: 'Mark verified' })).toHaveLength(initialCount - 1);
+    expect(screen.getByRole('button', { name: 'Reopen review' })).toBeTruthy();
+    expect(findingsRegion.getByText(/1 verified/)).toBeTruthy();
+
+    navigate(/Prepare for CivCheck/);
+    const handoffRegion = within(screen.getByRole('region', { name: 'CivCheck handoff' }));
+    expect(handoffRegion.getByText(/1 fixed/)).toBeTruthy();
+    expect(handoffRegion.getByText(/1 verified/)).toBeTruthy();
+  });
+
   it('does not duplicate sample generation or files on repeated start clicks', async () => {
     const generation = deferred<File[]>();
     vi.mocked(createDemoFiles).mockReturnValueOnce(generation.promise);

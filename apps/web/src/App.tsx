@@ -34,6 +34,8 @@ export default function App() {
   const renameReturnStep = useRef<WorkspaceStep>('files');
   const selected = session.items.find((item) => item.record.id === preview?.id);
   const hasFiles = session.items.length > 0;
+  const verifiedSet = new Set(session.verifiedFindingIds);
+  const verifiedReviewCount = session.summary.findings.filter((finding) => finding.category === 'review' && verifiedSet.has(finding.id)).length;
   const pageDetail = step === 'setup'
     ? (hasWorkspace
       ? 'Update the name shown on your workspace, checklist, and exported ZIP manifest.'
@@ -211,6 +213,8 @@ export default function App() {
           {step === 'files' && <FilesPanel key={workspaceVersion}
             items={session.items} summary={session.summary} busy={session.busy} exporting={session.exporting}
             highlightedId={highlightedId} removedName={session.removedName} replacingId={session.replacingId}
+            verifiedFileKeys={session.verifiedFileKeys} onVerifyFile={session.verifyFile}
+            resolvedFixes={session.resolvedFixes}
             onLoadSample={() => { heading.current?.focus(); void session.loadDemo(); }}
             onAdd={(files) => { void session.addFiles(files); }} onReplace={(id, file) => { void session.replaceFile(id, file); }}
             onRename={session.rename} onClassify={session.classify} onOmitReference={session.omitReference}
@@ -219,12 +223,19 @@ export default function App() {
             onPreview={(id) => setPreview({ id, page: 1 })} onCorrectDemo={(id) => { void session.correctDemo(id); }}
             onContinue={() => { setFindingFilter('all'); setStep('findings'); }}
           />}
-          {step === 'findings' && <FindingsPanel key={findingFilter} items={session.items} summary={session.summary} onPreview={(id, page) => setPreview({ id, page })} onEditFile={editFile} onContinue={() => setStep('handoff')} initialFilter={findingFilter} />}
-          {step === 'handoff' && <HandoffPanel items={session.items} summary={session.summary} busy={session.busy} exporting={session.exporting}
+          {step === 'findings' && <FindingsPanel key={findingFilter} items={session.items} summary={session.summary}
+            busy={session.busy} verifiedIds={session.verifiedFindingIds}
+            resolvedFixes={session.resolvedFixes}
+            onToggleVerified={session.toggleFindingVerified} onSetVerified={session.setFindingsVerified}
+            onRename={session.rename} onReplace={(id, file) => { void session.replaceFile(id, file); }}
+            onClassify={session.classify}
+            onPreview={(id, page) => setPreview({ id, page })} onEditFile={editFile}
+            onContinue={() => setStep('handoff')} initialFilter={findingFilter} />}
+          {step === 'handoff' && <HandoffPanel items={session.items} summary={session.summary} verifiedIds={session.verifiedFindingIds} resolvedFixCount={session.resolvedFixes.length} busy={session.busy} exporting={session.exporting}
             onExport={() => { void session.exportPackage(); }} onBack={() => { setFindingFilter('all'); setStep('findings'); }}
             onFiles={() => setStep('files')} onPreview={(id, page) => setPreview({ id, page })} />}
           {hasWorkspace && <div className="workspace-reset">{clearConfirm ? <div className="notice reset-confirm"><strong>Clear this workspace and start again?</strong><p>All files and findings in this session will be removed. Originals and downloads stay unchanged.</p><div className="action-row reset-actions"><button className="button secondary danger-outline" disabled={session.exporting} onClick={reset}>Clear and start again</button><button className="button primary" onClick={() => setClearConfirm(false)}>Keep working</button></div></div> : <button className="button ghost sm" disabled={session.exporting} onClick={() => setClearConfirm(true)}>Start a new preparation set</button>}</div>}
-        </div>{hasFiles && <PreparationSummary summary={session.summary} fileCount={session.items.length} working={session.working} onCoverage={() => { setFindingFilter('not-assessed'); setStep('findings'); }} />}</div>
+        </div>{hasFiles && <PreparationSummary summary={session.summary} fileCount={session.items.length} working={session.working} verifiedReviewCount={verifiedReviewCount} resolvedFixCount={session.resolvedFixes.length} onCoverage={() => { setFindingFilter('not-assessed'); setStep('findings'); }} />}</div>
       <footer className="footer"><span><a href="https://entheosit.com/" target="_blank" rel="noreferrer">EntheosIT</a> Preflight, local browser preparation</span><span>© 2026 Entheos Inc. Not affiliated with Honolulu DPP or Clariti.</span></footer>
     </main>
     {help && <HelpDialog onClose={() => setHelp(false)} />}
