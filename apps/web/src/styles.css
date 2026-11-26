@@ -564,7 +564,7 @@ small, .small { font-size: 12px; line-height: 1.45; }
 .file-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding-left: 44px; }
 .file-controls-left { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-width: 0; flex: 1; }
 .inline-label { display: inline-flex; align-items: center; gap: 8px; color: var(--secondary); font-size: 12px; font-weight: 500; }
-.inline-label select { width: auto; padding: 6px 10px; min-height: 36px; font-size: 13px; max-width: 195px; }
+.inline-label select { width: auto; padding: 6px 32px 6px 10px; min-height: 36px; font-size: 13px; max-width: 100%; }
 .file-actions-right { margin-left: auto; }
 .file-remove-btn { margin-left: 8px; }
 .filename-actions { display: flex; gap: 8px; flex-wrap: wrap; }
