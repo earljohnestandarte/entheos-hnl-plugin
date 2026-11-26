@@ -17,14 +17,14 @@ export const FINDING_STATUS_META: Record<FindingCategory, {
   tone: StatusTone;
 }> = {
   fix: {
-    label: 'Fix',
-    groupTitle: 'Fix',
+    label: 'To fix',
+    groupTitle: 'To fix',
     description: 'Address these covered file-check issues first. They are not a code-compliance verdict.',
     tone: 'warning',
   },
   review: {
-    label: 'Review',
-    groupTitle: 'Review',
+    label: 'To review',
+    groupTitle: 'To review',
     description: 'Check the actual drawings and project records. Automated file checks cannot verify these details.',
     tone: 'info',
   },

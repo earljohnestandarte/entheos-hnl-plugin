@@ -58,8 +58,8 @@ export function HandoffPanel({
             : summary.label}
         </strong>
         <p>
-          {summary.fixCount} open {summary.fixCount === 1 ? 'fix' : 'fixes'}
-          {resolvedFixCount > 0 ? `, ${resolvedFixCount} fixed` : ''}, {openReviewCount} requiring manual review
+          {summary.fixCount} to fix
+          {resolvedFixCount > 0 ? `, ${resolvedFixCount} fixed` : ''}, {openReviewCount} to review
           {verifiedReviewCount > 0 ? `, ${verifiedReviewCount} verified` : ''}, and {notAssessedCount} not assessed.
           {summary.classificationPendingCount > 0 && ` Confirm the type of ${summary.classificationPendingCount} ${summary.classificationPendingCount === 1 ? 'file' : 'files'}.`}
         </p>
