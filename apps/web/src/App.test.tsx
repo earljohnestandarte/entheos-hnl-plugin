@@ -79,6 +79,7 @@ describe('App preparation journeys', () => {
     expect(screen.getByRole('button', { name: 'Choose PDF files' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Choose folder' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Try the guided sample' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Name set' })).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: 'Preparation set name' })).toBeNull();
     expect(screen.queryByRole('article')).toBeNull();
     const navigation = within(screen.getByRole('navigation', { name: 'Local preparation steps' }));
@@ -88,8 +89,14 @@ describe('App preparation journeys', () => {
     expect(readPdf).not.toHaveBeenCalled();
   });
 
-  it('loads three sample files and retains them through findings, handoff, and back navigation', async () => {
+  it('accepts a name before import and preserves it through handoff', async () => {
     render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Name set' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Preparation set name' }), {
+      target: { value: '  Integration set  ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save name' }));
+    expect(screen.getByText('Integration set')).toBeTruthy();
     await loadSample();
     expectFiles();
     expect(readPdf).toHaveBeenCalledTimes(3);
@@ -104,7 +111,7 @@ describe('App preparation journeys', () => {
     expect(within(handoff).getByText('3 source files')).toBeTruthy();
     fireEvent.click(within(handoff).getByRole('button', { name: 'Download preparation ZIP' }));
     await waitFor(() => expect(downloadBytes).toHaveBeenCalledTimes(1));
-    expect(buildPackage).toHaveBeenCalledWith('My preparation set', expect.arrayContaining([
+    expect(buildPackage).toHaveBeenCalledWith('Integration set', expect.arrayContaining([
       expect.objectContaining({ record: expect.objectContaining({ originalName: floorName, status: 'complete' }) }),
     ]), expect.any(Array));
     fireEvent.click(screen.getByRole('button', { name: /Back to findings/ }));

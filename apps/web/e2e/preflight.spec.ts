@@ -149,6 +149,11 @@ test('uses the chooser and folder inputs, replaces a PDF, and preserves bytes in
   await page.screenshot({ path: info.outputPath('mobile-files.png') });
   await page.setViewportSize(viewport);
   await page.screenshot({ path: info.outputPath('desktop-files.png') });
+  const projectName = 'Permit PDF rehearsal';
+  await page.getByRole('button', { name: 'Name set', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Preparation set name' }).fill(projectName);
+  await page.getByRole('button', { name: 'Save name' }).click();
+  await expect(page.getByText(projectName, { exact: true })).toBeVisible();
   const [title, floor, ...rest] = await permitFixture();
   const folder = info.outputPath('test-input');
   await mkdir(folder, { recursive: true });
@@ -179,7 +184,7 @@ test('uses the chooser and folder inputs, replaces a PDF, and preserves bytes in
   expect(download.suggestedFilename()).toBe('HNL-preflight-test-only.zip');
   const output = unzipSync(await readFile((await download.path())!));
   const manifest = JSON.parse(Buffer.from(output['reference/manifest.json']).toString());
-  expect(manifest).toMatchObject({ schemaVersion: 3, testOnly: true, submissionReady: false });
+  expect(manifest).toMatchObject({ projectName, schemaVersion: 3, testOnly: true, submissionReady: false });
   expect(manifest.documents).toHaveLength(12);
   expect(manifest.documents.find((document: { exportName: string }) => document.exportName === floor.name)).toMatchObject({ revision: 2 });
   for (const document of manifest.documents) {

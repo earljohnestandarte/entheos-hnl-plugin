@@ -18,7 +18,7 @@
 
 | Area | Current capability and boundary |
 | --- | --- |
-| Starting point | Open directly on **Add plans** with file, folder, drop, and guided sample options. Test-only guidance appears by the import controls. |
+| Starting point | Open directly on **Add plans** with an optional set name, file and folder pickers, a drop area, and a guided sample. Test-only guidance appears by the import controls. |
 | Workspace | Choose or drop test PDFs, confirm plan/supporting/reference roles, rename the set, reopen help, or reset with confirmation |
 | Samples | Generate three local PDFs: title sheet, bad-name/portrait floor plan, and three-page supporting form; generate a corrected plan replacement |
 | Analysis | PDF.js worker extracts page count, dimensions/rotation and text; unsupported/error states remain visible |

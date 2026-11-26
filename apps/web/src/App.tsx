@@ -12,7 +12,7 @@ import { PdfPreview } from './components/PdfPreview';
 type WorkspaceView = WorkspaceStep | 'setup';
 
 const stepCopy: Record<WorkspaceView, { title: string; detail?: string }> = {
-  setup: { title: 'Rename set' },
+  setup: { title: 'Preparation set' },
   files: { title: 'Files', detail: 'Check exported drawing sheets and supporting documents before CivCheck.' },
   findings: { title: 'Findings', detail: 'File issues first. Manual checks remain separate.' },
   handoff: { title: 'CivCheck handoff', detail: 'Practice file order, document assignments, and evidence review.' },
@@ -34,8 +34,8 @@ export default function App() {
   const renameReturnStep = useRef<WorkspaceStep>('files');
   const selected = session.items.find((item) => item.record.id === preview?.id);
   const hasFiles = session.items.length > 0;
-  const customName = session.projectName !== DEFAULT_PROJECT_NAME;
-  const canReset = hasFiles || customName || session.working || !!session.removedName;
+  const showSetName = hasFiles || session.projectName !== DEFAULT_PROJECT_NAME;
+  const canReset = showSetName || session.working || !!session.removedName;
 
   useEffect(() => {
     if (previousView.current.step === step && previousView.current.workspaceVersion === workspaceVersion) return;
@@ -46,7 +46,7 @@ export default function App() {
   function openRename() {
     if (step === 'setup') return;
     renameReturnStep.current = step;
-    setSetupName(session.projectName);
+    setSetupName(showSetName ? session.projectName : '');
     setSetupError('');
     setStep('setup');
   }
@@ -81,10 +81,14 @@ export default function App() {
     <main id="main" className="app-main">
         <div className="page-heading">
           <div>
-            {(hasFiles || customName) && (
+            {(showSetName || step !== 'setup') && (
               <div className="page-context">
-                <span>{session.projectName}</span>
-                {step !== 'setup' && <button type="button" className="button ghost sm" onClick={openRename}>Rename set</button>}
+                {showSetName && <span>{session.projectName}</span>}
+                {step !== 'setup' && (
+                  <button type="button" className="button ghost sm" onClick={openRename}>
+                    {showSetName ? 'Rename set' : 'Name set'}
+                  </button>
+                )}
               </div>
             )}
             <h1 ref={heading} tabIndex={-1}>{stepCopy[step].title}</h1>
@@ -97,7 +101,7 @@ export default function App() {
         {session.notice && <div className="alert success" role="status">{session.notice}</div>}
         <div className={hasFiles ? 'content-grid' : undefined}><div className="main-column">
           {step === 'setup' && (
-            <section className="panel surface-card" aria-label="Rename preparation set">
+            <section className="panel surface-card">
               <form className="setup-workspace" onSubmit={(event) => {
                 event.preventDefault();
                 const name = setupName.trim();

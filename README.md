@@ -39,7 +39,7 @@ To serve the production build locally, run `corepack pnpm --filter @hnl/web prev
 5. Select **Use corrected sample PDF** or **Replace** with another approved test PDF. A readable replacement advances the revision and recalculates findings. A failed or canceled replacement leaves the current revision available.
 6. Open **Prepare for CivCheck** to review the remaining work, plan order, suggested document pages, and evidence for the owner, address, and TMK. Copy or download the checklist as text, or download the test-only ZIP once export blockers are cleared. Keep the test files and reports out of the live portal.
 
-The three local steps are **Add plans → Fix & review → Prepare for CivCheck**. After adding files, use **Rename set** to give the set a name or **How it works** to reopen help. **Start a new preparation set** asks for confirmation before clearing the session.
+The three local steps are **Add plans → Fix & review → Prepare for CivCheck**. On **Add plans**, use **Name set** before importing or **Rename set** later. **How it works** opens help. **Start a new preparation set** asks for confirmation before clearing the session.
 
 Use **Undo remove** to restore the most recently removed PDF during the current session. **Undo rename** restores a file's original export name. Clearing the workspace also clears the removal undo.
 
