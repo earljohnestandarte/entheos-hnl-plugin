@@ -70,6 +70,7 @@ export interface PreparationSession {
   undoRemove: () => Promise<void>;
   replacingId: string | null;
   cancelReplacement: () => void;
+  clearFeedback: () => void;
   clear: () => void;
   exportPackage: () => Promise<void>;
   rename: (id: string, name: string) => void;
@@ -306,6 +307,12 @@ export function usePreparationSession(): PreparationSession {
     if (replacingId) controllers.current.get(replacingId)?.abort();
   }
 
+  function clearFeedback(): void {
+    if (!mounted.current) return;
+    setError('');
+    setNotice('');
+  }
+
   function clear(): void {
     if (!mounted.current) return;
     generation.current++;
@@ -379,7 +386,7 @@ export function usePreparationSession(): PreparationSession {
   return {
     items, summary, busy: working || exporting, working, exporting, notice, error,
     projectName, setProjectName, addFiles, loadDemo, correctDemo, replaceFile,
-    remove, removedName: removed?.item.record.exportName, undoRemove, replacingId, cancelReplacement,
+    remove, removedName: removed?.item.record.exportName, undoRemove, replacingId, cancelReplacement, clearFeedback,
     clear, exportPackage, rename, classify, omitReference,
   };
 }

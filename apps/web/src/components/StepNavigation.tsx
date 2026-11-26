@@ -1,3 +1,5 @@
+import { IconCheck } from './Icons';
+
 export type WorkspaceStep = 'setup' | 'files' | 'findings' | 'handoff';
 
 const STEPS = [
@@ -16,18 +18,22 @@ export function StepNavigation({ current, hasWorkspace, hasFiles, fixCount, clas
       <ol>
         {STEPS.map((step, index) => {
           const isCurrent = current === step.id;
+          const isDone = !isCurrent && (
+            (step.id === 'setup' && hasWorkspace) ||
+            (step.id === 'files' && hasFiles && classificationPendingCount === 0 && (current === 'findings' || current === 'handoff'))
+          );
           const count = step.id === 'files' ? classificationPendingCount : step.id === 'findings' ? fixCount : 0;
           return (
             <li key={step.id}>
               <button
                 type="button"
-                className={`step-button ${isCurrent ? 'is-active' : ''}`}
+                className={`step-button ${isCurrent ? 'is-active' : isDone ? 'is-done' : ''}`}
                 aria-current={isCurrent ? 'step' : undefined}
                 disabled={step.id !== 'setup' && (!hasWorkspace || (step.id !== 'files' && !hasFiles))}
                 onClick={() => onNavigate(step.id)}
               >
                 <span className="step-badge" aria-hidden="true">
-                  {index + 1}
+                  {isDone ? <IconCheck width={12} height={12} /> : index + 1}
                 </span>
                 <span className="step-text">
                   <strong>{step.label}</strong>

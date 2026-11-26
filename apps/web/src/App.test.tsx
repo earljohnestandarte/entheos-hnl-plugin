@@ -263,6 +263,28 @@ describe('App preparation journeys', () => {
     expect(readPdf).toHaveBeenCalledTimes(5);
   });
 
+  it('validates empty project names consistently, clears stale reset notices, and opens coverage help from setup', async () => {
+    render(<App />);
+    const input = screen.getByRole('textbox', { name: 'Project name' }) as HTMLInputElement;
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to files' }));
+    expect(screen.getByRole('alert').textContent).toBe('Enter a project name.');
+    expect(document.activeElement).toBe(input);
+
+    const coverageButton = screen.getByRole('button', { name: 'Review check coverage' });
+    fireEvent.click(coverageButton);
+    expect(screen.getByRole('dialog').hasAttribute('open')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Close help' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    await loadSample('First set');
+    fireEvent.click(screen.getByRole('button', { name: 'Start a new preparation set' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear and start again' }));
+    expect(screen.getByRole('status').textContent).toContain('Session cleared');
+    createWorkspace('Second set');
+    expect(screen.queryByText(/Session cleared/)).toBeNull();
+    expect(within(screen.getByRole('navigation', { name: 'Local preparation steps' })).getByRole('button', { name: /Workspace setup/ }).className).toContain('is-done');
+  });
+
   it('does not duplicate sample generation or files on repeated start clicks', async () => {
     const generation = deferred<File[]>();
     vi.mocked(createDemoFiles).mockReturnValueOnce(generation.promise);

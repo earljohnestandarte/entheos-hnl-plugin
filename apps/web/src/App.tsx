@@ -29,10 +29,16 @@ export default function App() {
   const [setupName, setSetupName] = useState('');
   const [setupError, setSetupError] = useState('');
   const heading = useRef<HTMLHeadingElement>(null);
+  const setupInputRef = useRef<HTMLInputElement>(null);
   const previousView = useRef({ step, workspaceVersion });
   const renameReturnStep = useRef<WorkspaceStep>('files');
   const selected = session.items.find((item) => item.record.id === preview?.id);
   const hasFiles = session.items.length > 0;
+  const pageDetail = step === 'setup'
+    ? (hasWorkspace
+      ? 'Update the name shown on your workspace, checklist, and exported ZIP manifest.'
+      : 'Name this preparation set before adding synthetic or approved test PDFs.')
+    : stepCopy[step].detail;
 
   useEffect(() => {
     if (previousView.current.step === step && previousView.current.workspaceVersion === workspaceVersion) return;
@@ -41,6 +47,8 @@ export default function App() {
   }, [step, workspaceVersion]);
 
   function navigate(next: WorkspaceStep) {
+    setClearConfirm(false);
+    if (next !== 'files') setHighlightedId(null);
     if (next === 'setup' && step !== 'setup') {
       renameReturnStep.current = step;
       setSetupName(session.projectName);
@@ -83,7 +91,7 @@ export default function App() {
           <div>
             {hasWorkspace && <p className="page-context">{session.projectName}</p>}
             <h1 ref={heading} tabIndex={-1}>{stepCopy[step].title}</h1>
-            {stepCopy[step].detail && <p>{stepCopy[step].detail}</p>}
+            {pageDetail && <p>{pageDetail}</p>}
           </div>
         </div>
         <StepNavigation current={step} hasWorkspace={hasWorkspace} hasFiles={hasFiles} fixCount={session.summary.fixCount}
@@ -92,29 +100,113 @@ export default function App() {
         {session.notice && <div className="alert success" role="status">{session.notice}</div>}
         <div className={hasFiles ? 'content-grid' : undefined}><div className="main-column">
           {step === 'setup' && (
-            <section className="panel surface-card setup-workspace">
-              <form onSubmit={(event) => {
-                event.preventDefault();
-                const name = setupName.trim();
-                if (session.busy) return;
-                if (!name) { setSetupError('Enter a project name.'); return; }
-                session.setProjectName(name);
-                setStep(hasWorkspace ? renameReturnStep.current : 'files');
-                setHasWorkspace(true);
-              }}>
-                <label className="field-label" htmlFor="workspace-name">Project name</label>
-                <input id="workspace-name" required maxLength={100} value={setupName} disabled={session.busy}
-                  aria-invalid={!!setupError} aria-describedby={setupError ? 'workspace-name-error' : undefined}
-                  onChange={(event) => { setSetupName(event.target.value); setSetupError(''); }} />
-                {setupError && <p id="workspace-name-error" role="alert" className="error-text">{setupError}</p>}
-                <div className="action-row">
-                  <button type="submit" className="button primary" disabled={session.busy}>
-                    {hasWorkspace ? 'Save name' : 'Continue to files'}
-                  </button>
-                  {hasWorkspace && <button type="button" className="button secondary" onClick={() => setStep(renameReturnStep.current)}>Cancel</button>}
+            <div className={!hasFiles ? 'setup-layout' : undefined}>
+              <section className="panel surface-card setup-workspace">
+                <div className="panel-heading">
+                  <div>
+                    <h2>{hasWorkspace ? 'Rename preparation set' : 'Start a preparation set'}</h2>
+                  </div>
+                  <span className="panel-meta">
+                    {hasWorkspace
+                      ? `${session.items.length} ${session.items.length === 1 ? 'file' : 'files'}`
+                      : 'Local browser session'}
+                  </span>
                 </div>
-              </form>
-            </section>
+                <form noValidate onSubmit={(event) => {
+                  event.preventDefault();
+                  const name = setupName.trim();
+                  if (session.busy) return;
+                  if (!name) {
+                    setSetupError('Enter a project name.');
+                    setupInputRef.current?.focus();
+                    return;
+                  }
+                  if (!hasWorkspace) session.clearFeedback();
+                  session.setProjectName(name);
+                  setSetupName(name);
+                  setSetupError('');
+                  setStep(hasWorkspace ? renameReturnStep.current : 'files');
+                  setHasWorkspace(true);
+                }}>
+                  <div className="field-header">
+                    <label className="field-label" htmlFor="workspace-name">Project name</label>
+                    {setupName.length >= 75 && (
+                      <span className="field-count" aria-hidden="true">{setupName.length}/100</span>
+                    )}
+                  </div>
+                  <input
+                    id="workspace-name"
+                    ref={setupInputRef}
+                    required
+                    maxLength={100}
+                    autoComplete="off"
+                    placeholder="e.g., 1420 Ala Moana Blvd — Permit Set"
+                    value={setupName}
+                    disabled={session.busy}
+                    aria-invalid={!!setupError}
+                    aria-describedby={setupError ? 'workspace-name-error workspace-name-hint' : 'workspace-name-hint'}
+                    onChange={(event) => { setSetupName(event.target.value); setSetupError(''); }}
+                  />
+                  {setupError && <p id="workspace-name-error" role="alert" className="error-text">{setupError}</p>}
+                  <p id="workspace-name-hint" className="field-hint">
+                    Used as the workspace title and recorded in the CivCheck handoff checklist and ZIP manifest.
+                  </p>
+                  {session.busy && (
+                    <p className="field-hint">Analyzing files in the background — name editing unlocks once complete.</p>
+                  )}
+                  <div className="action-row setup-actions">
+                    <button type="submit" className="button primary" disabled={session.busy}>
+                      {hasWorkspace ? 'Save name' : 'Continue to files'}
+                    </button>
+                    {hasWorkspace && (
+                      <button type="button" className="button secondary" onClick={() => {
+                        setSetupError('');
+                        setStep(renameReturnStep.current);
+                      }}>
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </section>
+              {!hasFiles && (
+                <aside className="setup-aside" aria-label="Preparation scope and privacy">
+                  <section className="coverage-card setup-guide-card">
+                    <h2>What happens next</h2>
+                    <ol className="setup-roadmap">
+                      <li>
+                        <span className="setup-roadmap-num" aria-hidden="true">1</span>
+                        <div>
+                          <strong>Add &amp; classify PDFs</strong>
+                          <p>Drop drawing sheets and supporting forms, or try the guided sample.</p>
+                        </div>
+                      </li>
+                      <li>
+                        <span className="setup-roadmap-num" aria-hidden="true">2</span>
+                        <div>
+                          <strong>Review findings &amp; values</strong>
+                          <p>Catch filename, sheet-size, orientation, and index mismatches early.</p>
+                        </div>
+                      </li>
+                      <li>
+                        <span className="setup-roadmap-num" aria-hidden="true">3</span>
+                        <div>
+                          <strong>Export practice ZIP</strong>
+                          <p>Download organized upload and reference folders with a portable checklist.</p>
+                        </div>
+                      </li>
+                    </ol>
+                  </section>
+                  <section className="session-card setup-boundary-card">
+                    <h3>Local browser boundary</h3>
+                    <p>PDFs stay in memory in this browser tab and clear on refresh. Use synthetic or approved de-identified test PDFs only.</p>
+                    <button type="button" className="button ghost sm" onClick={() => setHelp(true)}>
+                      Review check coverage
+                    </button>
+                  </section>
+                </aside>
+              )}
+            </div>
           )}
           {step === 'files' && <FilesPanel key={workspaceVersion}
             items={session.items} summary={session.summary} busy={session.busy} exporting={session.exporting}
