@@ -1,7 +1,7 @@
 # Prototype status — S0
 
 **Updated:** 2026-11-26
-**State:** S0 includes the reliability changes, a test-only CivCheck handoff checklist, and production-browser acceptance coverage. The current rules remain demo rules. The timed preparer rehearsal and pilot remain open.
+**State:** S0 includes the reliability and workflow improvements, a test-only CivCheck handoff checklist, and production-browser acceptance coverage. The timed preparer rehearsal, screen-reader acceptance, and pilot remain open.
 **Scope:** Test-only first useful slice, not the full MVP, M0–M6 completion, or P00–P22 sign-off.
 
 ## 1. Safety and claims
@@ -18,31 +18,31 @@
 
 | Area | Current capability and boundary |
 | --- | --- |
-| Onboarding | Coverage overview, guided-sample/test-PDF choice, set name and explicit memory-only/test-only acknowledgment; back navigation retains setup |
-| Workspace | Four local preparation steps; choose/drop test PDFs, rename the set without discarding files, classify Plan/Supporting document; reusable help and confirmed reset |
+| Onboarding | Guided sample and test upload on the first screen, optional set name, and test-session acknowledgment |
+| Workspace | Choose or drop test PDFs, confirm plan/supporting/reference roles, rename the set, reopen help, or reset with confirmation |
 | Samples | Generate three local PDFs: title sheet, bad-name/portrait floor plan, and three-page supporting form; generate a corrected plan replacement |
 | Analysis | PDF.js worker extracts page count, dimensions/rotation and text; unsupported/error states remain visible |
-| Preview | Page canvas, page navigation and extracted text; no evidence-region annotations or verified highlights |
-| Naming | Suggestion preview, accept and undo; original filename/bytes remain distinct from export name |
-| Changes | Replace a file or use the corrected sample; remove files; clear the workspace through confirmation |
-| Findings | Pure deterministic per-file/set checks, categories `fix`, `review`, `advisory`, `not-assessed`, and action/source hints |
+| Preview | Fit-to-page and zoom, page navigation, and extracted-text search |
+| Naming | Preview, validate, accept, and undo export names while preserving each original filename and PDF |
+| Changes | Parse a replacement before switching revisions, cancel it, or undo the most recent removal |
+| Findings | Deterministic file and set checks, explicit index coverage, and action and source hints |
 | Current state | SHA-256 source hashes and file revisions; guarded asynchronous results; replacement re-parses changed content and recalculates set findings |
-| Export | Local source-preserving ZIP with validated names/collisions, source hashes and revision references; reference reports kept separate |
+| Export | Copy or download the local checklist. Create an unchanged-byte ZIP with validated names, hashes, revisions, and distinct source and review-only PDFs. |
 
-Individual removal currently acts immediately; only workspace clearing has a confirmation prompt. Rename undo is not general undo or recoverable action history.
+The most recent removal can be undone in the current session. Reset requires confirmation and clears that undo. A replacement is parsed before it becomes the current revision.
 
 Covered demo checks include filename format/collisions, title filename, plan page count, dimensions/orientation, common plan size and text-layer availability. Title/index and FAR text cues are hints, not verified evidence or scope-specific value extraction. Supporting forms are excluded from plan-only formatting rules.
 
-Demo rule pack 0.3.0 uses explicit owner and building-area labels, lists conflicting values with their revision-linked sources, and checks drawing-index rows independently of the uploaded filenames. It supports the descriptive title filename shown in DPP’s checklist and flags multiple title candidates. Mapping suggestions use filename descriptions and page headings. The test handoff lists plan order, potential document pages, and source pages for owner, address, and tax map key. Imported CivCheck checklists appear as review material in the handoff. [DPP plan-format checklist, revised August 2025](https://www4.honolulu.gov/docushare/dsweb/Get/Document-347535/building-permit-checklist.pdf)
+Demo rule pack 0.4.0 reports partial drawing-index coverage, links findings to the indexed page, and distinguishes missing sheets from sheets that could not be matched. It uses explicit owner and building-area labels and lists conflicting values with their revision-linked sources. The handoff lists plan order, suggested document pages, and source pages for owner, address, and tax map key. Detected or manually selected review-only references appear separately from the source PDFs. [DPP plan-format checklist, revised August 2025](https://www4.honolulu.gov/docushare/dsweb/Get/Document-347535/building-permit-checklist.pdf)
 
 ## 3. Try the correction path
 
-1. Complete **Get started → Try the guided sample → Continue**, name the set and acknowledge the test/session limits, then **Start guided sample**. Confirm all three PDFs and their classification. The alternative **Use my test PDFs** opens an empty workspace.
+1. Acknowledge the test-session limits and choose **Try the guided sample** or **Upload a test plan set** on the first screen. In **Add plans**, check the file roles and resolve any pending classification.
 2. For `A101 & Floor Plan.pdf`, select **Review filename**, inspect the proposal and **Accept name**; try **Undo rename**.
-3. Open **View PDF**, inspect the portrait page, and expand **Extracted text**. Review the file/set findings.
+3. Open **View PDF**, inspect the portrait page, and zoom or search for an entry in the extracted text. Review the file and set findings, including index coverage.
 4. Select **Use corrected sample PDF** (or **Replace** with a safe test PDF). Confirm the new revision and recalculated findings.
 5. Revisit manual reviews and not-assessed items. Fixing the sample's filename/orientation does not establish compliance.
-6. Open **Prepare for CivCheck**, download and inspect the ZIP. **How it works** opens help without clearing data. **Start a new preparation set** requires confirmation before clearing it.
+6. Open **Prepare for CivCheck**, review the open work, and copy or download the checklist. Download and inspect the ZIP. **How it works** opens help without clearing data. **Start a new preparation set** requires confirmation before clearing it.
 
 The app borrows familiar CivCheck terminology only for the downstream handoff. Its independent **Set up → Add plans → Fix & review → Prepare for CivCheck** flow is not a clone, live portal progress, or an official review. The guided checklist never marks manual review complete merely because formatting fixes disappear.
 
@@ -53,6 +53,7 @@ This path is narrower than the original full demonstration: it has no scope ques
 ```text
 upload/plan/               unchanged plan PDFs under accepted names
 upload/supporting/         unchanged supporting PDFs under accepted names
+reference/source-pdfs/    unchanged review-only PDFs
 reference/guide.txt        manual handoff steps and limitations
 reference/findings.csv     findings, sources and revision references
 reference/manifest.json    hashes, original/export names, revisions, snapshot metadata
@@ -61,9 +62,9 @@ reference/readiness.pdf    preparation reference only, not a compliance report
 
 Export checks source byte counts/SHA-256 hashes, safe filenames/case-insensitive collisions, current file revisions and finding references. Its project-revision fingerprint identifies the export snapshot, not a persisted project counter or true history. CSV cells are escaped and guarded against formula injection.
 
-Unreadable/pending sources or unsafe names prevent export; unresolved preparation findings may still be exported with explicit incomplete/non-compliance disclaimers. The manifest always records `complianceAssessed: false` and `submissionReady: false`.
+Unreadable or pending sources, unresolved file roles, and unsafe or duplicate names prevent export. The preparer can explicitly omit an unreadable review-only PDF and review that omission in the reports. Other open findings remain in the test package. The manifest records `complianceAssessed: false` and `submissionReady: false`.
 
-The ZIP and its reference reports are labeled for local testing. Export pack 1.0.0 uses manifest schema 2. The manifest records page geometry and generated or user-supplied test provenance. Full extracted page text stays in the application. The snapshot fingerprint is based on versioned source metadata and findings. The test guide supports local rehearsal with individual PDFs.
+Export pack 2.0.0 uses manifest schema 3. The manifest records roles, omitted references, page geometry, and test provenance. The snapshot fingerprint covers versioned source metadata, omissions, and findings. Full extracted page text stays in the application.
 
 ## 5. Architecture and tooling
 
@@ -81,12 +82,14 @@ The ZIP and its reference reports are labeled for local testing. Export pack 1.0
 
 | Evidence | Status |
 | --- | --- |
-| Typecheck, unit, and component tests | 249 tests passed across the core, exports, PDF generation, deadlines, and workspace/session flows. The dependency audit reported no known vulnerabilities. |
-| Production browser acceptance | Three Playwright acceptance tests passed in Chrome and Edge. They exercise the guided handoff, file and folder chooser events, drag-and-drop, ZIP inspection, and source replacement with the real PDF worker. The suite covers malformed, scanned, and password-protected inputs. |
-| Keyboard and responsive checks | The browser test opens evidence by keyboard and checks focus return after Escape. It checks the handoff for horizontal overflow at 390 px. Screen-reader and full WCAG acceptance remain open. |
-| App performance | The six Edge trials below passed the 60-second target on the 12-file synthetic fixture. Larger workloads, worker/process memory, and real-sample accuracy remain open. |
+| Typecheck, unit, and component tests | TypeScript, the production build, and 256 Vitest tests passed. |
+| Production browser acceptance | Four Playwright acceptance tests passed in each of Chrome and Edge. They cover both entry paths, file and folder selection, drag-and-drop, replacement and undo, clipboard fallback, ZIP separation and byte verification, and malformed, scanned, and password-protected PDFs. |
+| Keyboard and responsive checks | The browser suite checks Help and evidence focus return after Escape, Findings tab keys, and handoff overflow at 390 px. Screen-reader and full WCAG acceptance remain open. |
+| App performance | The six post-change Edge runs met the 60-second analysis target for the 12-file synthetic fixture. Larger workloads, process memory, and real-sample accuracy remain open. |
 
-Benchmark on Windows 11 Pro with Edge `158.0.4370.33`, Intel Core i7-10510U, and 16 GiB RAM. The fixture has 12 files and 11,272 bytes with aggregate source hash `b3701874a011e5cfdaa471ac6887443021acedf030281125a5f486538c4baf39`. Each cold run used a fresh context. The warm run followed in that context. Analysis time includes upload through final findings. Preview and ZIP timings are separate. The reported heap is a sampled renderer JS heap estimate.
+After the workflow changes, analysis took 3.46–7.26 seconds across three cold and three warm runs using the same Edge version, machine, and fixture. Fit-to-page preview took 0.44–1.02 seconds and ZIP download took 0.41–0.72 seconds. The longest observed main-thread task was 228 ms. These measurements cover app operations. The timed preparer rehearsal measures hands-on work separately.
+
+The baseline table below predates the workflow improvements. It ran on Windows 11 Pro with Edge `158.0.4370.33`, Intel Core i7-10510U, and 16 GiB RAM. The fixture has 12 files and 11,272 bytes with aggregate source hash `b3701874a011e5cfdaa471ac6887443021acedf030281125a5f486538c4baf39`. Each cold run used a fresh context followed by a warm run. Analysis time covers upload through final findings. Preview and ZIP timings are separate. The reported heap is a sampled renderer JS heap estimate.
 
 | Trial | Cache | Analysis | Preview | ZIP | Longest main-thread task | Reported heap |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |

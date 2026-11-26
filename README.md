@@ -32,16 +32,16 @@ To serve the production build locally, run `corepack pnpm --filter @hnl/web prev
 
 ## Try the sample fix path
 
-1. Select **Get started**, review the coverage, and continue with **Try the guided sample**. Name the set, acknowledge the test-only/session-only limits, and select **Start guided sample**. Three PDFs are generated locally: a title sheet, a deliberately portrait floor plan with the bad filename `A101 & Floor Plan.pdf`, and a three-page supporting form. None is an official form or a real project. Choose **Use my test PDFs** instead to start with an empty workspace.
-2. Review **Plan / Supporting document** classification. Supporting forms are not subject to plan-only sheet-size and single-page rules.
+1. Acknowledge the local test-session limits and select **Try the guided sample**. It generates a title sheet, a portrait floor plan named `A101 & Floor Plan.pdf`, and a three-page supporting form. Choose **Upload a test plan set** to add approved test PDFs from your usual drawing tools. Both paths open **Add plans**.
+2. Review the **Plan**, **Supporting document**, and **Review-only reference** roles. Resolve any **Confirm file type** decisions before handoff. The plan sheet-size and single-page checks apply to drawing sheets.
 3. Select **Review filename**, inspect the suggestion, then **Accept name**. **Undo rename** restores the original name; source PDF bytes are never rewritten.
-4. Open **View PDF**, navigate pages, and expand **Extracted text**. Review the per-file and set-level findings under **Fix**, **Review**, **Advice**, and **Not assessed**.
-5. Use **Use corrected sample PDF** on the portrait plan, or **Replace** with another safe test PDF. Replacement increments the file revision and recalculates findings. The corrected sample fixes only its filename/orientation, not design compliance.
-6. Open **Prepare for CivCheck**. Rehearse plan order and classification, review suggested document pages, and open source pages for the owner, address, and TMK. Download the test-only ZIP once filenames are safe and distinct. Keep the test files and reports out of the live portal.
+4. Open **View PDF** to zoom, navigate pages, or search the extracted text. Review the per-file and set-level findings, including drawing-index coverage, under **Fix**, **Review**, **Advice**, and **Not assessed**.
+5. Select **Use corrected sample PDF** or **Replace** with another approved test PDF. A readable replacement advances the revision and recalculates findings. A failed or canceled replacement leaves the current revision available.
+6. Open **Prepare for CivCheck** to review the remaining work, plan order, suggested document pages, and evidence for the owner, address, and TMK. Copy or download the checklist as text, or download the test-only ZIP once export blockers are cleared. Keep the test files and reports out of the live portal.
 
 The four local steps are **Set up → Add plans → Fix & review → Prepare for CivCheck**. They are not CivCheck progress counters. **How it works** reopens help without discarding files; **Set up** lets you rename the set. **Start a new preparation set** asks for confirmation before clearing the session.
 
-You can also choose/drop test PDFs, remove individual files, or clear the workspace through its confirmation prompt. Individual removal currently acts immediately; it is not recoverable history. Rename undo is not a general undo/history system.
+Use **Undo remove** to restore the most recently removed PDF during the current session. **Undo rename** restores a file's original export name. Clearing the workspace also clears the removal undo.
 
 ## Output separation
 
@@ -50,13 +50,14 @@ upload/
   plan/                 unchanged plan PDFs with accepted export names
   supporting/           unchanged supporting PDFs with accepted export names
 reference/
+  source-pdfs/          unchanged review-only PDFs
   guide.txt             manual handoff guidance and limitations
   findings.csv          findings and source/revision references
   manifest.json         source hashes, names, revisions, snapshot fingerprint
   readiness.pdf         preparation reference, not a compliance report
 ```
 
-Export validates names and source revisions and verifies SHA-256 hashes against the original bytes. Unreadable or pending files and unsafe or duplicate names block export. Other preparation findings remain in the reference reports. Manifest version 2 records source provenance and page geometry. Full extracted page text stays in the browser workspace. The manifest records `testOnly: true`, `complianceAssessed: false`, and `submissionReady: false`.
+Export validates names and source revisions and verifies SHA-256 hashes against the original bytes. Pending file decisions, unreadable source PDFs, and unsafe or duplicate names block export. An unreadable review-only PDF can be explicitly omitted and remains listed in the reference reports. Manifest schema 3 records file roles, omissions, source provenance, and page geometry. Full extracted page text stays in the browser workspace. The manifest records `testOnly: true`, `complianceAssessed: false`, and `submissionReady: false`.
 
 The ZIP is an organizational download, not an assumed CivCheck ingestion format. `reference/` files are for the user, **not upload candidates** or required forms. Any future authorized real-project handoff must use the appropriate individual source PDFs and current official instructions; never submit these synthetic samples as a real project. This app creates no certificate, CivCheck ID, or watermarked plans and does not automate portal actions.
 
@@ -71,6 +72,7 @@ The ZIP is an organizational download, not an assumed CivCheck ingestion format.
 ## Documentation
 
 - [Prototype status (S0)](docs/PROTOTYPE_STATUS.md) — current slice, safety boundary, verification status, and next gates.
+- [Preflight workflow plan](docs/PREFLIGHT_WORKFLOW_PLAN.md) — file roles, revision handling, index coverage, and test handoff.
 - [Implementation plan](docs/IMPLEMENTATION_PLAN.md) — explicit S0 sequencing change plus preserved M0–M7/P00–P22 backlog.
 - [Architecture baseline](docs/ARCHITECTURE.md) — current S0 boundary versus the longer-term architecture.
 - [Requirements traceability](docs/REQUIREMENTS_TRACEABILITY.md) — partial S0 coverage and retained requirements/acceptance evidence.

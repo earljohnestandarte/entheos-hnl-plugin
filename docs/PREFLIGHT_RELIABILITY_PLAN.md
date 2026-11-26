@@ -2,6 +2,8 @@
 
 **Status** — The test-only reliability iteration is implemented on the feature branch. Timed preparer rehearsal and real-project pilot acceptance remain open.
 
+The [Preflight workflow improvement plan](PREFLIGHT_WORKFLOW_PLAN.md) covers the next iteration identified in the app review.
+
 The next milestone is a dependable PDF pre-check for synthetic test sets. A preparer should be able to upload a set, understand which findings have evidence, correct or replace a file, and download a package that reflects the current revisions. A subsequent pilot should cover one verified Honolulu permit workflow. The existing roadmap retains the broader MVP, access and recovery work, and extension requirements. [Implementation roadmap](IMPLEMENTATION_PLAN.md), [requirements traceability](REQUIREMENTS_TRACEABILITY.md)
 
 ## 1. Current state and analysis
